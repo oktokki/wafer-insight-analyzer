@@ -78,7 +78,7 @@ export const WaferMapViewer = ({ data }: WaferMapViewerProps) => {
               <span className="font-medium">Wafer ID:</span> {waferMapData.id}
             </div>
             <div>
-              <span className="font-medium">Yield:</span> {waferMapData.yield.toFixed(2)}%
+              <span className="font-medium">Yield:</span> {waferMapData.yieldPercentage.toFixed(2)}%
             </div>
             <div>
               <span className="font-medium">Total Dies:</span> {waferMapData.totalDies}
@@ -132,7 +132,7 @@ function generateMockWaferMap() {
   }
   
   const totalDies = bins[1] + bins[2] + bins[3] + bins[4];
-  const yield = (bins[1] / totalDies) * 100;
+  const yieldPercentage = (bins[1] / totalDies) * 100;
   
   return {
     id: "W001_LOT_240624",
@@ -140,6 +140,6 @@ function generateMockWaferMap() {
     map,
     bins,
     totalDies,
-    yield
+    yieldPercentage
   };
 }
