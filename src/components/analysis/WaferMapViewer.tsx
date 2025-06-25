@@ -1,3 +1,4 @@
+
 import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -197,6 +198,9 @@ function generateMockWaferMap() {
     map,
     bins,
     totalDies,
-    yieldPercentage
+    yieldPercentage,
+    isRealData: false,
+    lotNo: "MOCK_LOT_240624",
+    device: "MOCK_DEVICE"
   };
 }
