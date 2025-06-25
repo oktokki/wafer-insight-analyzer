@@ -1,9 +1,11 @@
 
 import { useState, useCallback } from "react";
-import { Upload, FileX, CheckCircle } from "lucide-react";
+import { Upload, FileX, CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { EdsMapParser, ParsedEdsData } from "@/utils/edsMapParser";
 
 interface DataUploadProps {
   onDataUpload: (data: any) => void;
@@ -12,6 +14,8 @@ interface DataUploadProps {
 export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [parsedData, setParsedData] = useState<ParsedEdsData | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -39,41 +43,90 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
     }
   }, []);
 
-  const handleFiles = (files: File[]) => {
-    const validFiles = files.filter(file => 
+  const handleFiles = async (files: File[]) => {
+    // Filter for EDS Map files
+    const edsFiles = files.filter(file => 
+      file.name.match(/\.\d{2}$/) || // .01, .02, etc.
+      file.name.endsWith('.FAR') ||
       file.name.endsWith('.stdf') || 
+      file.name.endsWith('.stdf.gz') ||
       file.name.endsWith('.csv') || 
       file.name.endsWith('.txt') ||
+      file.name.endsWith('.lotSumTXT') ||
       file.name.endsWith('.zip')
     );
 
-    if (validFiles.length === 0) {
+    if (edsFiles.length === 0) {
       toast({
         title: "Invalid file format",
-        description: "Please upload STDF, CSV, TXT, or ZIP files.",
+        description: "Please upload EDS Map files (.01-.25, .FAR), STDF files, or other supported formats.",
         variant: "destructive"
       });
       return;
     }
 
-    setUploadedFiles(prev => [...prev, ...validFiles]);
-    
-    // Mock data processing
-    setTimeout(() => {
-      const mockData = {
-        lots: validFiles.length,
-        wafers: Math.floor(Math.random() * 25) + 1,
-        yield: Math.random() * 0.3 + 0.7,
-        files: validFiles.map(f => f.name)
-      };
+    setUploadedFiles(prev => [...prev, ...edsFiles]);
+    setIsProcessing(true);
+
+    try {
+      // Check if we have EDS map files to parse
+      const mapFiles = edsFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR'));
       
-      onDataUpload(mockData);
-      
+      if (mapFiles.length > 0) {
+        console.log('Parsing EDS map files:', mapFiles.map(f => f.name));
+        const parsed = await EdsMapParser.parseEdsFiles(mapFiles);
+        setParsedData(parsed);
+        
+        // Convert to format expected by existing components
+        const processedData = {
+          type: 'eds-maps',
+          lots: 1,
+          wafers: parsed.waferMaps.length,
+          yield: parsed.waferMaps.length > 0 
+            ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsed.waferMaps.length / 100
+            : 0,
+          files: edsFiles.map(f => f.name),
+          edsData: parsed
+        };
+        
+        onDataUpload(processedData);
+        
+        toast({
+          title: "EDS data loaded successfully",
+          description: `Processed ${parsed.waferMaps.length} wafer maps with validation ${parsed.validationResults.issues.length === 0 ? 'passed' : 'warnings'}`,
+          variant: parsed.validationResults.issues.length === 0 ? "default" : "destructive"
+        });
+      } else {
+        // Handle other file types with mock processing for now
+        const mockData = {
+          type: 'other',
+          lots: edsFiles.length,
+          wafers: Math.floor(Math.random() * 25) + 1,
+          yield: Math.random() * 0.3 + 0.7,
+          files: edsFiles.map(f => f.name)
+        };
+        
+        onDataUpload(mockData);
+        
+        toast({
+          title: "Data loaded successfully",
+          description: `Processed ${edsFiles.length} file(s). Note: Full parsing for STDF/other formats coming soon.`
+        });
+      }
+    } catch (error) {
+      console.error('Error parsing files:', error);
       toast({
-        title: "Data loaded successfully",
-        description: `Processed ${validFiles.length} file(s) with ${mockData.wafers} wafers.`
+        title: "Error processing files",
+        description: "Failed to parse uploaded files. Please check file format and content.",
+        variant: "destructive"
       });
-    }, 2000);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -82,7 +135,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
         <CardHeader>
           <CardTitle>Data Upload</CardTitle>
           <CardDescription>
-            Upload STDF files, Wafer Map CSV files, or ZIP archives containing multiple lots
+            Upload EDS Map files (.01-.25, .FAR), STDF files, Wafer Map CSV files, or ZIP archives
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -102,19 +155,19 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
               Drop files here or click to upload
             </p>
             <p className="text-gray-500 mb-4">
-              Supports: .stdf, .csv, .txt, .zip files
+              Supports: EDS Maps (.01-.25, .FAR), STDF (.stdf, .gz), CSV, TXT, ZIP files
             </p>
             <input
               type="file"
               multiple
-              accept=".stdf,.csv,.txt,.zip"
+              accept=".01,.02,.03,.04,.05,.06,.07,.08,.09,.10,.11,.12,.13,.14,.15,.16,.17,.18,.19,.20,.21,.22,.23,.24,.25,.FAR,.stdf,.gz,.csv,.txt,.lotSumTXT,.zip"
               onChange={handleFileInput}
               className="hidden"
               id="file-upload"
             />
-            <Button asChild>
+            <Button asChild disabled={isProcessing}>
               <label htmlFor="file-upload" className="cursor-pointer">
-                Select Files
+                {isProcessing ? "Processing..." : "Select Files"}
               </label>
             </Button>
           </div>
@@ -137,11 +190,60 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
                       <p className="text-sm text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => removeFile(index)}>
                     <FileX className="h-4 w-4" />
                   </Button>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {parsedData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>EDS Data Analysis Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="font-medium">Wafer Count:</span> {parsedData.waferMaps.length}
+                </div>
+                <div>
+                  <span className="font-medium">Average Yield:</span> {' '}
+                  {parsedData.waferMaps.length > 0 
+                    ? (parsedData.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsedData.waferMaps.length).toFixed(2)
+                    : 0}%
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Validation Results:</h4>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={parsedData.validationResults.waferCountMatch ? "default" : "destructive"}>
+                    Wafer Count: {parsedData.validationResults.waferCountMatch ? "✓" : "✗"}
+                  </Badge>
+                  <Badge variant={parsedData.validationResults.bin1CountMatch ? "default" : "destructive"}>
+                    BIN1 Count: {parsedData.validationResults.bin1CountMatch ? "✓" : "✗"}
+                  </Badge>
+                </div>
+                
+                {parsedData.validationResults.issues.length > 0 && (
+                  <div className="mt-2">
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Validation Issues:</span>
+                    </div>
+                    <ul className="text-sm text-amber-700 mt-1 ml-6">
+                      {parsedData.validationResults.issues.map((issue, idx) => (
+                        <li key={idx}>• {issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
