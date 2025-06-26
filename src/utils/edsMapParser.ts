@@ -1,4 +1,5 @@
 import { LotSummaryParser, ParsedLotSummary } from './lotSummaryParser';
+import { DataValidator, DataIntegrityReport } from './dataValidator';
 
 export interface WaferMapHeader {
   device: string;
@@ -41,6 +42,7 @@ export interface ParsedEdsData {
     lotSummaryMatch: boolean;
     issues: string[];
   };
+  integrityReport: DataIntegrityReport;
 }
 
 export class EdsMapParser {
@@ -223,12 +225,14 @@ export class EdsMapParser {
     waferMaps.sort((a, b) => a.header.slotNo - b.header.slotNo);
     
     const validationResults = this.validateData(waferMaps, farSummary, lotSummary);
+    const integrityReport = DataValidator.generateIntegrityReport(waferMaps, farSummary, lotSummary);
     
     return {
       waferMaps,
       farSummary,
       lotSummary,
-      validationResults
+      validationResults,
+      integrityReport
     };
   }
 }
