@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { Upload, FileX, CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,13 +52,14 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
       file.name.endsWith('.csv') || 
       file.name.endsWith('.txt') ||
       file.name.endsWith('.lotSumTXT') ||
+      file.name.includes('lotSum') ||
       file.name.endsWith('.zip')
     );
 
     if (edsFiles.length === 0) {
       toast({
         title: "Invalid file format",
-        description: "Please upload EDS Map files (.01-.25, .FAR), STDF files, or other supported formats.",
+        description: "Please upload EDS Map files (.01-.25, .FAR), Lot Summary files (.lotSumTXT), STDF files, Wafer Map CSV files, or ZIP archives.",
         variant: "destructive"
       });
       return;
@@ -69,11 +69,11 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
     setIsProcessing(true);
 
     try {
-      // Check if we have EDS map files to parse
-      const mapFiles = edsFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR'));
+      // Check if we have EDS-related files to parse
+      const mapFiles = edsFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR') || f.name.endsWith('.lotSumTXT') || f.name.includes('lotSum'));
       
       if (mapFiles.length > 0) {
-        console.log('Parsing EDS map files:', mapFiles.map(f => f.name));
+        console.log('Parsing EDS-related files:', mapFiles.map(f => f.name));
         const parsed = await EdsMapParser.parseEdsFiles(mapFiles);
         setParsedData(parsed);
         
@@ -84,16 +84,19 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           wafers: parsed.waferMaps.length,
           yield: parsed.waferMaps.length > 0 
             ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsed.waferMaps.length / 100
-            : 0,
+            : (parsed.lotSummary?.overallStats.overallYield || 0) / 100,
           files: edsFiles.map(f => f.name),
           edsData: parsed
         };
         
         onDataUpload(processedData);
         
+        const hasLotSummary = parsed.lotSummary ? 'with Lot Summary' : '';
+        const validationStatus = parsed.validationResults.issues.length === 0 ? 'passed' : 'with warnings';
+        
         toast({
           title: "EDS data loaded successfully",
-          description: `Processed ${parsed.waferMaps.length} wafer maps with validation ${parsed.validationResults.issues.length === 0 ? 'passed' : 'warnings'}`,
+          description: `Processed ${parsed.waferMaps.length} wafer maps ${hasLotSummary} - validation ${validationStatus}`,
           variant: parsed.validationResults.issues.length === 0 ? "default" : "destructive"
         });
       } else {
@@ -135,7 +138,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
         <CardHeader>
           <CardTitle>Data Upload</CardTitle>
           <CardDescription>
-            Upload EDS Map files (.01-.25, .FAR), STDF files, Wafer Map CSV files, or ZIP archives
+            Upload EDS Map files (.01-.25, .FAR), Lot Summary files (.lotSumTXT), STDF files, Wafer Map CSV files, or ZIP archives
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -155,7 +158,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
               Drop files here or click to upload
             </p>
             <p className="text-gray-500 mb-4">
-              Supports: EDS Maps (.01-.25, .FAR), STDF (.stdf, .gz), CSV, TXT, ZIP files
+              Supports: EDS Maps (.01-.25, .FAR), Lot Summary (.lotSumTXT), STDF (.stdf, .gz), CSV, TXT, ZIP files
             </p>
             <input
               type="file"
@@ -215,9 +218,26 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
                   <span className="font-medium">Average Yield:</span> {' '}
                   {parsedData.waferMaps.length > 0 
                     ? (parsedData.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsedData.waferMaps.length).toFixed(2)
-                    : 0}%
+                    : parsedData.lotSummary?.overallStats.overallYield.toFixed(2) || 0}%
                 </div>
               </div>
+              
+              {parsedData.lotSummary && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Lot Summary Information:</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div><span className="font-medium">Lot:</span> {parsedData.lotSummary.header.lotNumber}</div>
+                    <div><span className="font-medium">Device:</span> {parsedData.lotSummary.header.device}</div>
+                    <div><span className="font-medium">Total Dies:</span> {parsedData.lotSummary.overallStats.totalDies.toLocaleString()}</div>
+                    <div><span className="font-medium">Pass Dies:</span> {parsedData.lotSummary.overallStats.totalPass.toLocaleString()}</div>
+                  </div>
+                  {parsedData.lotSummary.testModes.length > 0 && (
+                    <div>
+                      <span className="font-medium">Test Modes:</span> {parsedData.lotSummary.testModes.join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
               
               <div className="space-y-2">
                 <h4 className="font-medium">Validation Results:</h4>
@@ -228,6 +248,11 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
                   <Badge variant={parsedData.validationResults.bin1CountMatch ? "default" : "destructive"}>
                     BIN1 Count: {parsedData.validationResults.bin1CountMatch ? "✓" : "✗"}
                   </Badge>
+                  {parsedData.lotSummary && (
+                    <Badge variant={parsedData.validationResults.lotSummaryMatch ? "default" : "destructive"}>
+                      Lot Summary: {parsedData.validationResults.lotSummaryMatch ? "✓" : "✗"}
+                    </Badge>
+                  )}
                 </div>
                 
                 {parsedData.validationResults.issues.length > 0 && (

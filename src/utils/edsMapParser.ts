@@ -1,3 +1,4 @@
+import { LotSummaryParser, ParsedLotSummary } from './lotSummaryParser';
 
 export interface WaferMapHeader {
   device: string;
@@ -33,9 +34,11 @@ export interface FarSummary {
 export interface ParsedEdsData {
   waferMaps: WaferMapData[];
   farSummary?: FarSummary;
+  lotSummary?: ParsedLotSummary;
   validationResults: {
     waferCountMatch: boolean;
     bin1CountMatch: boolean;
+    lotSummaryMatch: boolean;
     issues: string[];
   };
 }
@@ -142,10 +145,11 @@ export class EdsMapParser {
     return summary as FarSummary;
   }
   
-  static validateData(waferMaps: WaferMapData[], farSummary?: FarSummary): ParsedEdsData['validationResults'] {
+  static validateData(waferMaps: WaferMapData[], farSummary?: FarSummary, lotSummary?: ParsedLotSummary): ParsedEdsData['validationResults'] {
     const issues: string[] = [];
     let waferCountMatch = true;
     let bin1CountMatch = true;
+    let lotSummaryMatch = true;
     
     if (farSummary) {
       // Check wafer count
@@ -174,9 +178,24 @@ export class EdsMapParser {
       }
     }
     
+    // Validate against Lot Summary
+    if (lotSummary) {
+      if (lotSummary.overallStats.totalWafers !== waferMaps.length) {
+        lotSummaryMatch = false;
+        issues.push(`Lot Summary wafer count mismatch: Summary reports ${lotSummary.overallStats.totalWafers}, found ${waferMaps.length} map files`);
+      }
+      
+      const totalMapPass = waferMaps.reduce((sum, wafer) => sum + wafer.header.passDie, 0);
+      if (Math.abs(lotSummary.overallStats.totalPass - totalMapPass) > 0) {
+        lotSummaryMatch = false;
+        issues.push(`Lot Summary pass die mismatch: Summary=${lotSummary.overallStats.totalPass}, Maps=${totalMapPass}`);
+      }
+    }
+    
     return {
       waferCountMatch,
       bin1CountMatch,
+      lotSummaryMatch,
       issues
     };
   }
@@ -184,12 +203,15 @@ export class EdsMapParser {
   static async parseEdsFiles(files: File[]): Promise<ParsedEdsData> {
     const waferMaps: WaferMapData[] = [];
     let farSummary: FarSummary | undefined;
+    let lotSummary: ParsedLotSummary | undefined;
     
     for (const file of files) {
       const content = await file.text();
       
       if (file.name.endsWith('.FAR')) {
         farSummary = this.parseFarFile(content);
+      } else if (file.name.endsWith('.lotSumTXT') || file.name.includes('lotSum')) {
+        lotSummary = LotSummaryParser.parseLotSummaryFile(content);
       } else if (file.name.match(/\.\d{2}$/)) {
         // Individual wafer map file (.01, .02, etc.)
         const waferData = this.parseWaferMapFile(file.name, content);
@@ -200,11 +222,12 @@ export class EdsMapParser {
     // Sort wafer maps by slot number
     waferMaps.sort((a, b) => a.header.slotNo - b.header.slotNo);
     
-    const validationResults = this.validateData(waferMaps, farSummary);
+    const validationResults = this.validateData(waferMaps, farSummary, lotSummary);
     
     return {
       waferMaps,
       farSummary,
+      lotSummary,
       validationResults
     };
   }
