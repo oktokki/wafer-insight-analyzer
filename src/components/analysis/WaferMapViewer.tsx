@@ -92,7 +92,7 @@ export const WaferMapViewer = ({ data }: WaferMapViewerProps) => {
               </Badge>
               {Object.entries(selectedWafer.binCounts).map(([bin, count]) => (
                 <Badge key={bin} variant="outline">
-                  {bin === '1' ? 'BIN1' : bin === 'X' ? 'FAIL' : bin === '.' ? 'NO DIE' : `BIN${bin}`}: {count}
+                  {bin === '1' ? 'BIN1' : bin === 'X' ? 'FAIL' : bin === '.' ? 'NO DIE' : `BIN${bin}`}: {Number(count)}
                 </Badge>
               ))}
             </div>
