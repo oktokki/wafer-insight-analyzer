@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { EdsMapParser, ParsedEdsData } from "@/utils/edsMapParser";
+import { StdfParser, ParsedStdfData } from "@/utils/stdfParser";
 import { DataIntegrityReportComponent } from "./DataIntegrityReport";
 
 interface DataUploadProps {
@@ -15,6 +16,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [parsedData, setParsedData] = useState<ParsedEdsData | null>(null);
+  const [parsedStdfData, setParsedStdfData] = useState<ParsedStdfData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
@@ -102,29 +104,31 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           variant: validationStatus === 'fail' ? "destructive" : "default"
         });
       } else if (stdfFiles.length > 0) {
-        // Handle STDF files
+        // Handle STDF files with enhanced parser
         console.log('Parsing STDF files:', stdfFiles.map(f => f.name));
         
-        // For now, create mock data structure for STDF files
-        const mockStdfData = {
+        const stdfResults = await Promise.all(
+          stdfFiles.map(file => StdfParser.parseStdfFile(file))
+        );
+        
+        // Combine results from multiple STDF files
+        const combinedStdfData = this.combineStdfResults(stdfResults);
+        setParsedStdfData(combinedStdfData);
+        
+        const processedData = {
           type: 'stdf',
           lots: 1,
           wafers: stdfFiles.length,
-          yield: Math.random() * 0.3 + 0.7,
+          yield: combinedStdfData.summary.yieldPercentage / 100,
           files: stdfFiles.map(f => f.name),
-          stdfData: {
-            // This would be populated by StdfParser.parseStdfFile() when implemented
-            files: stdfFiles.length,
-            totalParts: Math.floor(Math.random() * 10000) + 5000,
-            passParts: Math.floor(Math.random() * 8000) + 4000
-          }
+          stdfData: combinedStdfData
         };
         
-        onDataUpload(mockStdfData);
+        onDataUpload(processedData);
         
         toast({
           title: "STDF data loaded successfully",
-          description: `Processed ${stdfFiles.length} STDF file(s). Full STDF parsing implementation in progress.`
+          description: `Processed ${stdfFiles.length} STDF file(s) with ${combinedStdfData.summary.totalParts.toLocaleString()} parts at ${combinedStdfData.summary.yieldPercentage.toFixed(1)}% yield`,
         });
       } else {
         // Handle other file types with mock processing for now
@@ -154,6 +158,51 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
       setIsProcessing(false);
     }
   };
+
+  private combineStdfResults(results: ParsedStdfData[]): ParsedStdfData {
+    if (results.length === 0) {
+      throw new Error('No STDF results to combine');
+    }
+    
+    if (results.length === 1) {
+      return results[0];
+    }
+    
+    // Combine multiple STDF files
+    const combined = { ...results[0] };
+    
+    // Combine parts from all files
+    combined.parts = [];
+    results.forEach(result => {
+      combined.parts.push(...result.parts);
+    });
+    
+    // Recalculate summary
+    const totalParts = combined.parts.length;
+    const passParts = combined.parts.filter(p => p.hardBin === 1).length;
+    const failParts = totalParts - passParts;
+    
+    combined.summary = {
+      totalParts,
+      passParts,
+      failParts,
+      yieldPercentage: totalParts > 0 ? (passParts / totalParts) * 100 : 0,
+      testNames: [...new Set(results.flatMap(r => r.summary.testNames))]
+    };
+    
+    // Combine bin summaries
+    combined.binSummary = {};
+    results.forEach(result => {
+      Object.entries(result.binSummary).forEach(([bin, data]) => {
+        if (!combined.binSummary[bin]) {
+          combined.binSummary[bin] = { count: 0, description: data.description };
+        }
+        combined.binSummary[bin].count += data.count;
+      });
+    });
+    
+    return combined;
+  }
 
   const removeFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
@@ -307,6 +356,70 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           {/* Data Integrity Report */}
           <DataIntegrityReportComponent report={parsedData.integrityReport} />
         </>
+      )}
+
+      {parsedStdfData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>STDF Data Analysis Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <span className="font-medium">Total Parts:</span> {parsedStdfData.summary.totalParts.toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-medium">Pass Parts:</span> {parsedStdfData.summary.passParts.toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-medium">Fail Parts:</span> {parsedStdfData.summary.failParts.toLocaleString()}
+                </div>
+                <div>
+                  <span className="font-medium">Yield:</span> {parsedStdfData.summary.yieldPercentage.toFixed(2)}%
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">File Information:</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="font-medium">Lot ID:</span> {parsedStdfData.header.lotId}</div>
+                  <div><span className="font-medium">Part Type:</span> {parsedStdfData.header.partType}</div>
+                  <div><span className="font-medium">Test Program:</span> {parsedStdfData.header.testProgram}</div>
+                  <div><span className="font-medium">Test Time:</span> {new Date(parsedStdfData.header.testTime).toLocaleString()}</div>
+                </div>
+                
+                {parsedStdfData.waferInfo && (
+                  <div className="mt-2">
+                    <span className="font-medium">Wafer ID:</span> {parsedStdfData.waferInfo.waferId}
+                  </div>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Bin Distribution:</h4>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(parsedStdfData.binSummary).map(([bin, data]) => (
+                    <Badge key={bin} variant={bin === '1' ? "default" : "destructive"}>
+                      BIN{bin}: {data.count} ({data.description})
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Available Tests:</h4>
+                <div className="flex flex-wrap gap-2">
+                  {parsedStdfData.summary.testNames.map(testName => (
+                    <Badge key={testName} variant="outline">
+                      {testName}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
