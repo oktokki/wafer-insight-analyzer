@@ -7,7 +7,9 @@ import { WaferMapViewer } from "@/components/analysis/WaferMapViewer";
 import { YieldDashboard } from "@/components/analysis/YieldDashboard";
 import { SPCCharts } from "@/components/analysis/SPCCharts";
 import { DefectPatterns } from "@/components/analysis/DefectPatterns";
+import { CorrelationAnalysis } from "@/components/analysis/CorrelationAnalysis";
 import { ReportSummary } from "@/components/reports/ReportSummary";
+import { ExportManager } from "@/components/reports/ExportManager";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState("dashboard");
@@ -25,8 +27,15 @@ const Index = () => {
         return <SPCCharts data={uploadedData} />;
       case "defect-patterns":
         return <DefectPatterns data={uploadedData} />;
+      case "correlation":
+        return <CorrelationAnalysis data={uploadedData} />;
       case "reports":
-        return <ReportSummary data={uploadedData} />;
+        return (
+          <div className="space-y-6">
+            <ReportSummary data={uploadedData} />
+            <ExportManager data={uploadedData} />
+          </div>
+        );
       default:
         return (
           <div className="space-y-6">
@@ -38,6 +47,7 @@ const Index = () => {
               <SPCCharts data={uploadedData} />
               <DefectPatterns data={uploadedData} />
             </div>
+            <CorrelationAnalysis data={uploadedData} />
           </div>
         );
     }
