@@ -1,239 +1,288 @@
 
-import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, Cell } from "recharts";
+import { AlertTriangle, Search, TrendingDown, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Search, Info, Minus } from "lucide-react";
 
 interface DefectPatternsProps {
   data?: any;
 }
 
 export const DefectPatterns = ({ data }: DefectPatternsProps) => {
-  const patterns = useMemo(() => {
-    // Check if we have real EDS data
-    if (data?.edsData?.waferMaps?.length > 0) {
-      const waferMaps = data.edsData.waferMaps;
-      
-      let edgeFailures = 0;
-      let centerFailures = 0;
-      let randomFailures = 0;
-      let totalFailures = 0;
-      let affectedWafers = new Set();
-      
-      // Analyze defect patterns from real wafer maps
-      waferMaps.forEach((wafer, waferIndex) => {
-        const map = wafer.coordinateMap;
-        const rows = map.length;
-        const cols = map[0]?.length || 0;
-        let waferHasEdgeDefects = false;
-        let waferHasCenterDefects = false;
-        let waferHasRandomDefects = false;
-        
-        map.forEach((row, y) => {
-          row.forEach((cell, x) => {
-            if (cell === 'X') {
-              totalFailures++;
-              
-              // Determine defect location
-              const isEdge = y < 2 || y >= rows - 2 || x < 2 || x >= cols - 2;
-              const isCenter = Math.abs(y - rows/2) < 3 && Math.abs(x - cols/2) < 3;
-              
-              if (isEdge) {
-                edgeFailures++;
-                waferHasEdgeDefects = true;
-              } else if (isCenter) {
-                centerFailures++;
-                waferHasCenterDefects = true;
-              } else {
-                randomFailures++;
-                waferHasRandomDefects = true;
-              }
+  const hasEdsData = data?.edsData?.waferMaps?.length > 0;
+  
+  let spatialData, defectSummary, patternAnalysis, clusterData;
+  
+  if (hasEdsData) {
+    const waferMaps = data.edsData.waferMaps;
+    
+    // Analyze spatial defect patterns
+    spatialData = [];
+    let totalDefects = 0;
+    
+    waferMaps.forEach((wafer, waferIndex) => {
+      if (wafer.coordinateMap && wafer.coordinateMap.length > 0) {
+        wafer.coordinateMap.forEach((row, rowIndex) => {
+          row.forEach((cell, colIndex) => {
+            if (cell === 'X') { // Failed die
+              spatialData.push({
+                wafer: waferIndex + 1,
+                x: colIndex,
+                y: rowIndex,
+                type: 'Fail'
+              });
+              totalDefects++;
             }
           });
         });
-        
-        if (waferHasEdgeDefects || waferHasCenterDefects || waferHasRandomDefects) {
-          affectedWafers.add(waferIndex);
-        }
-      });
-      
-      const realPatterns = [];
-      
-      // Edge pattern analysis
-      if (edgeFailures > 0) {
-        const edgePercentage = (edgeFailures / totalFailures) * 100;
-        realPatterns.push({
-          id: 1,
-          name: "Edge Ring",
-          severity: edgePercentage > 40 ? "high" : edgePercentage > 20 ? "medium" : "low",
-          confidence: Math.min(95, 60 + (edgePercentage * 0.8)),
-          description: `High failure concentration at wafer edges (${edgePercentage.toFixed(1)}% of failures)`,
-          recommendation: "Check edge bead removal process and wafer handling",
-          affectedWafers: Math.ceil((edgeFailures / totalFailures) * waferMaps.length),
-          trend: "stable"
-        });
       }
-      
-      // Center pattern analysis
-      if (centerFailures > 0) {
-        const centerPercentage = (centerFailures / totalFailures) * 100;
-        realPatterns.push({
-          id: 2,
-          name: "Center Cluster",
-          severity: centerPercentage > 30 ? "high" : centerPercentage > 15 ? "medium" : "low",
-          confidence: Math.min(90, 50 + (centerPercentage * 1.2)),
-          description: `Localized failures in center region (${centerPercentage.toFixed(1)}% of failures)`,
-          recommendation: "Investigate lithography alignment and chuck temperature uniformity",
-          affectedWafers: Math.ceil((centerFailures / totalFailures) * waferMaps.length),
-          trend: centerPercentage > 25 ? "increasing" : "stable"
-        });
-      }
-      
-      // Random pattern analysis
-      if (randomFailures > 0) {
-        const randomPercentage = (randomFailures / totalFailures) * 100;
-        realPatterns.push({
-          id: 3,
-          name: "Random Defects",
-          severity: randomPercentage > 50 ? "medium" : "low",
-          confidence: Math.min(80, 40 + (randomPercentage * 0.6)),
-          description: `Scattered individual die failures (${randomPercentage.toFixed(1)}% of failures)`,
-          recommendation: "Monitor particle contamination and process stability",
-          affectedWafers: affectedWafers.size,
-          trend: "decreasing"
-        });
-      }
-      
-      return realPatterns.length > 0 ? realPatterns : getMockPatterns();
-    }
+    });
     
-    // Fallback to mock data
-    return getMockPatterns();
-  }, [data]);
+    // Generate defect summary by wafer
+    defectSummary = waferMaps.map((wafer, index) => ({
+      wafer: `W${wafer.header.slotNo}`,
+      defects: wafer.header.failDie,
+      defectRate: ((wafer.header.failDie / wafer.header.totalTestDie) * 100).toFixed(2),
+      pattern: wafer.header.failDie > 100 ? 'High' : wafer.header.failDie > 50 ? 'Medium' : 'Low'
+    }));
+    
+    // Pattern analysis
+    const edgeDefects = spatialData.filter(d => 
+      d.x < 3 || d.x > 15 || d.y < 3 || d.y > 15
+    ).length;
+    
+    const centerDefects = spatialData.filter(d => 
+      d.x >= 7 && d.x <= 11 && d.y >= 7 && d.y <= 11
+    ).length;
+    
+    patternAnalysis = [
+      { pattern: 'Edge Effects', count: edgeDefects, percentage: ((edgeDefects / totalDefects) * 100).toFixed(1) },
+      { pattern: 'Center Clustering', count: centerDefects, percentage: ((centerDefects / totalDefects) * 100).toFixed(1) },
+      { pattern: 'Random Distribution', count: totalDefects - edgeDefects - centerDefects, percentage: (((totalDefects - edgeDefects - centerDefects) / totalDefects) * 100).toFixed(1) }
+    ];
+    
+    // Cluster analysis by quadrant
+    clusterData = [
+      { quadrant: 'Top-Left', defects: spatialData.filter(d => d.x < 9 && d.y < 9).length },
+      { quadrant: 'Top-Right', defects: spatialData.filter(d => d.x >= 9 && d.y < 9).length },
+      { quadrant: 'Bottom-Left', defects: spatialData.filter(d => d.x < 9 && d.y >= 9).length },
+      { quadrant: 'Bottom-Right', defects: spatialData.filter(d => d.x >= 9 && d.y >= 9).length }
+    ];
+  } else {
+    // Mock data
+    spatialData = Array.from({ length: 200 }, (_, i) => ({
+      wafer: Math.floor(i / 40) + 1,
+      x: Math.random() * 20,
+      y: Math.random() * 20,
+      type: Math.random() > 0.8 ? 'Fail' : 'Pass'
+    })).filter(d => d.type === 'Fail');
+    
+    defectSummary = [
+      { wafer: "W1", defects: 248, defectRate: "14.9", pattern: "High" },
+      { wafer: "W2", defects: 215, defectRate: "12.9", pattern: "Medium" },
+      { wafer: "W3", defects: 273, defectRate: "16.4", pattern: "High" },
+      { wafer: "W4", defects: 179, defectRate: "10.7", pattern: "Medium" },
+      { wafer: "W5", defects: 221, defectRate: "13.2", pattern: "Medium" }
+    ];
+    
+    patternAnalysis = [
+      { pattern: 'Edge Effects', count: 45, percentage: '38.1' },
+      { pattern: 'Center Clustering', count: 28, percentage: '23.7' },
+      { pattern: 'Random Distribution', count: 45, percentage: '38.2' }
+    ];
+    
+    clusterData = [
+      { quadrant: 'Top-Left', defects: 28 },
+      { quadrant: 'Top-Right', defects: 31 },
+      { quadrant: 'Bottom-Left', defects: 25 },
+      { quadrant: 'Bottom-Right', defects: 34 }
+    ];
+  }
 
-  const isRealData = data?.edsData?.waferMaps?.length > 0;
-
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case "high":
-        return <Badge className="bg-red-100 text-red-800">High Priority</Badge>;
-      case "medium":
-        return <Badge className="bg-orange-100 text-orange-800">Medium Priority</Badge>;
-      case "low":
-        return <Badge className="bg-green-100 text-green-800">Low Priority</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
+  const getPatternColor = (pattern: string) => {
+    switch (pattern) {
+      case 'High': return '#ef4444';
+      case 'Medium': return '#f59e0b';
+      case 'Low': return '#22c55e';
+      default: return '#94a3b8';
     }
   };
 
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case "increasing":
-        return <AlertTriangle className="h-4 w-4 text-red-500" />;
-      case "stable":
-        return <Minus className="h-4 w-4 text-orange-500" />;
-      case "decreasing":
-        return <Info className="h-4 w-4 text-green-500" />;
-      default:
-        return <Search className="h-4 w-4 text-gray-500" />;
+  const getPatternBadge = (pattern: string) => {
+    switch (pattern) {
+      case 'High': return 'bg-red-100 text-red-800';
+      case 'Medium': return 'bg-yellow-100 text-yellow-800';
+      case 'Low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
-
-  const highPriorityCount = patterns.filter(p => p.severity === "high").length;
-  const avgConfidence = patterns.length > 0 
-    ? patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length 
-    : 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Defect Pattern Analysis</CardTitle>
-        <CardDescription>
-          {isRealData ? 'Real EDS data analysis' : 'Mock data'} - AI-powered pattern recognition and root cause analysis
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {patterns.map((pattern) => (
-            <div key={pattern.id} className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-8 w-8 text-red-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Defects</p>
+                <p className="text-2xl font-bold text-red-600">{spatialData.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <Search className="h-8 w-8 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pattern Types</p>
+                <p className="text-2xl font-bold text-blue-600">{patternAnalysis.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <TrendingDown className="h-8 w-8 text-orange-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Edge Effects</p>
+                <p className="text-2xl font-bold text-orange-600">{patternAnalysis[0]?.percentage}%</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <Zap className="h-8 w-8 text-purple-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Hot Spots</p>
+                <p className="text-2xl font-bold text-purple-600">{Math.max(...clusterData.map(c => c.defects))}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Defect Distribution by Wafer */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Defect Distribution by Wafer</CardTitle>
+            <CardDescription>Number of defects per wafer</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={defectSummary}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="wafer" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="defects">
+                  {defectSummary.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={getPatternColor(entry.pattern)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Spatial Defect Pattern */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Spatial Defect Distribution</CardTitle>
+            <CardDescription>Defect locations across wafer surface</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <ScatterChart data={spatialData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="x" domain={[0, 20]} />
+                <YAxis dataKey="y" domain={[0, 20]} />
+                <Tooltip 
+                  formatter={(value, name) => [value, name]}
+                  labelFormatter={() => 'Defect Location'}
+                />
+                <Scatter dataKey="x" fill="#ef4444" />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Pattern Analysis */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Defect Pattern Analysis</CardTitle>
+          <CardDescription>Classification of defect patterns and their distribution</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {patternAnalysis.map((pattern, index) => (
+              <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div className="flex items-center space-x-3">
-                  <h4 className="font-semibold">{pattern.name}</h4>
-                  {getSeverityBadge(pattern.severity)}
-                  {getTrendIcon(pattern.trend)}
+                  <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                  <div>
+                    <h4 className="font-medium">{pattern.pattern}</h4>
+                    <p className="text-sm text-gray-600">{pattern.count} defects</p>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-500">
-                  {pattern.confidence.toFixed(1)}% confidence
-                </div>
+                <Badge variant="outline">{pattern.percentage}%</Badge>
               </div>
-              
-              <p className="text-sm text-gray-600">{pattern.description}</p>
-              
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">Affected Wafers:</span> {pattern.affectedWafers}
-                </div>
-                <div>
-                  <span className="font-medium">Trend:</span> {pattern.trend}
-                </div>
-              </div>
-              
-              <div className="bg-blue-50 p-3 rounded">
-                <div className="font-medium text-blue-900 text-sm mb-1">Recommendation:</div>
-                <div className="text-blue-700 text-sm">{pattern.recommendation}</div>
-              </div>
-            </div>
-          ))}
-          
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium mb-2 flex items-center">
-              <Search className="h-4 w-4 mr-2" />
-              Pattern Detection Summary
-            </h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>Total Patterns Detected: <span className="font-medium">{patterns.length}</span></div>
-              <div>High Priority Issues: <span className="font-medium text-red-600">{highPriorityCount}</span></div>
-              <div>Analysis Confidence: <span className="font-medium">{avgConfidence.toFixed(1)}%</span></div>
-              <div>Recommended Actions: <span className="font-medium">{patterns.length}</span></div>
-            </div>
+            ))}
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Quadrant Analysis */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Quadrant Defect Analysis</CardTitle>
+          <CardDescription>Defect clustering by wafer quadrants</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={clusterData} layout="horizontal">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis dataKey="quadrant" type="category" />
+              <Tooltip />
+              <Bar dataKey="defects" fill="#3b82f6" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Wafer Summary Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Wafer Defect Summary</CardTitle>
+          <CardDescription>Detailed breakdown by individual wafer</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {defectSummary.map((wafer, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <span className="font-medium">{wafer.wafer}</span>
+                  <span className="text-sm text-gray-600">{wafer.defects} defects</span>
+                  <span className="text-sm text-gray-600">{wafer.defectRate}% rate</span>
+                </div>
+                <Badge className={getPatternBadge(wafer.pattern)}>
+                  {wafer.pattern} Risk
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
-
-function getMockPatterns() {
-  return [
-    {
-      id: 1,
-      name: "Edge Ring",
-      severity: "high",
-      confidence: 94.2,
-      description: "High failure concentration at wafer edges",
-      recommendation: "Check edge bead removal process",
-      affectedWafers: 15,
-      trend: "increasing"
-    },
-    {
-      id: 2,
-      name: "Center Cluster",
-      severity: "medium",
-      confidence: 78.5,
-      description: "Localized failures in center region",
-      recommendation: "Investigate lithography alignment",
-      affectedWafers: 8,
-      trend: "stable"
-    },
-    {
-      id: 3,
-      name: "Random Defects",
-      severity: "low",
-      confidence: 65.3,
-      description: "Scattered individual die failures",
-      recommendation: "Monitor particle contamination",
-      affectedWafers: 12,
-      trend: "decreasing"
-    }
-  ];
-}

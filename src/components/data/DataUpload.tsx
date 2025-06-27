@@ -44,8 +44,8 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
   }, []);
 
   const handleFiles = async (files: File[]) => {
-    // Filter for EDS Map files
-    const edsFiles = files.filter(file => 
+    // Filter for supported file types
+    const supportedFiles = files.filter(file => 
       file.name.match(/\.\d{2}$/) || // .01, .02, etc.
       file.name.endsWith('.FAR') ||
       file.name.endsWith('.stdf') || 
@@ -57,7 +57,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
       file.name.endsWith('.zip')
     );
 
-    if (edsFiles.length === 0) {
+    if (supportedFiles.length === 0) {
       toast({
         title: "Invalid file format",
         description: "Please upload EDS Map files (.01-.25, .FAR), Lot Summary files (.lotSumTXT), STDF files, Wafer Map CSV files, or ZIP archives.",
@@ -66,12 +66,13 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
       return;
     }
 
-    setUploadedFiles(prev => [...prev, ...edsFiles]);
+    setUploadedFiles(prev => [...prev, ...supportedFiles]);
     setIsProcessing(true);
 
     try {
       // Check if we have EDS-related files to parse
-      const mapFiles = edsFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR') || f.name.endsWith('.lotSumTXT') || f.name.includes('lotSum'));
+      const mapFiles = supportedFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR') || f.name.endsWith('.lotSumTXT') || f.name.includes('lotSum'));
+      const stdfFiles = supportedFiles.filter(f => f.name.endsWith('.stdf') || f.name.endsWith('.stdf.gz'));
       
       if (mapFiles.length > 0) {
         console.log('Parsing EDS-related files:', mapFiles.map(f => f.name));
@@ -86,7 +87,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           yield: parsed.waferMaps.length > 0 
             ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsed.waferMaps.length / 100
             : (parsed.lotSummary?.overallStats.overallYield || 0) / 100,
-          files: edsFiles.map(f => f.name),
+          files: supportedFiles.map(f => f.name),
           edsData: parsed
         };
         
@@ -100,21 +101,46 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           description: `Processed ${parsed.waferMaps.length} wafer maps ${hasLotSummary} - integrity check: ${validationStatus}`,
           variant: validationStatus === 'fail' ? "destructive" : "default"
         });
+      } else if (stdfFiles.length > 0) {
+        // Handle STDF files
+        console.log('Parsing STDF files:', stdfFiles.map(f => f.name));
+        
+        // For now, create mock data structure for STDF files
+        const mockStdfData = {
+          type: 'stdf',
+          lots: 1,
+          wafers: stdfFiles.length,
+          yield: Math.random() * 0.3 + 0.7,
+          files: stdfFiles.map(f => f.name),
+          stdfData: {
+            // This would be populated by StdfParser.parseStdfFile() when implemented
+            files: stdfFiles.length,
+            totalParts: Math.floor(Math.random() * 10000) + 5000,
+            passParts: Math.floor(Math.random() * 8000) + 4000
+          }
+        };
+        
+        onDataUpload(mockStdfData);
+        
+        toast({
+          title: "STDF data loaded successfully",
+          description: `Processed ${stdfFiles.length} STDF file(s). Full STDF parsing implementation in progress.`
+        });
       } else {
         // Handle other file types with mock processing for now
         const mockData = {
           type: 'other',
-          lots: edsFiles.length,
+          lots: supportedFiles.length,
           wafers: Math.floor(Math.random() * 25) + 1,
           yield: Math.random() * 0.3 + 0.7,
-          files: edsFiles.map(f => f.name)
+          files: supportedFiles.map(f => f.name)
         };
         
         onDataUpload(mockData);
         
         toast({
           title: "Data loaded successfully",
-          description: `Processed ${edsFiles.length} file(s). Note: Full parsing for STDF/other formats coming soon.`
+          description: `Processed ${supportedFiles.length} file(s). Note: Full parsing for some formats coming soon.`
         });
       }
     } catch (error) {

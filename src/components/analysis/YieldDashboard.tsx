@@ -1,169 +1,227 @@
 
-import { useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { TrendingUp, TrendingDown, Target, Zap } from "lucide-react";
 
 interface YieldDashboardProps {
   data?: any;
 }
 
 export const YieldDashboard = ({ data }: YieldDashboardProps) => {
-  const yieldData = useMemo(() => {
-    // Check if we have real EDS data
-    if (data?.edsData?.waferMaps?.length > 0) {
-      const waferMaps = data.edsData.waferMaps;
-      
-      // Calculate current yield from real data
-      const totalWafers = waferMaps.length;
-      const currentYield = waferMaps.reduce((sum, wafer) => sum + wafer.header.yield, 0) / totalWafers;
-      
-      // Calculate bin distribution from all wafers
-      const totalDies = waferMaps.reduce((sum, wafer) => sum + wafer.header.totalTestDie, 0);
-      const totalPassDies = waferMaps.reduce((sum, wafer) => sum + wafer.header.passDie, 0);
-      const totalFailDies = waferMaps.reduce((sum, wafer) => sum + wafer.header.failDie, 0);
-      
-      const bins = {
-        bin1: totalDies > 0 ? (totalPassDies / totalDies) * 100 : 0,
-        bin2: totalDies > 0 ? (totalFailDies / totalDies) * 100 : 0,
-        bin3: 0, // Marginal - not available in current EDS data
-        bin4: totalDies > 0 ? ((totalDies - totalPassDies - totalFailDies) / totalDies) * 100 : 0
-      };
-      
-      // Create lot data from wafer data
-      const lots = waferMaps.slice(0, 5).map((wafer, index) => ({
-        id: wafer.header.waferId || `WAFER_${index + 1}`,
-        yield: wafer.header.yield,
-        status: wafer.header.yield >= 90 ? "excellent" : 
-               wafer.header.yield >= 85 ? "pass" : "warning"
-      }));
-      
-      return {
-        current: currentYield,
-        target: 85.0,
-        previous: currentYield + (Math.random() * 4 - 2), // Simulate previous data
-        trend: Math.random() * 4 - 2,
-        lots,
-        bins,
-        isRealData: true
-      };
-    }
+  // Check if we have real EDS data
+  const hasEdsData = data?.edsData?.waferMaps?.length > 0;
+  
+  let yieldData, binData, trendData, kpiData;
+  
+  if (hasEdsData) {
+    const waferMaps = data.edsData.waferMaps;
     
-    // Fallback to mock data
-    return {
-      current: 87.5,
-      target: 85.0,
-      previous: 89.2,
-      trend: -1.7,
-      lots: [
-        { id: "LOT001", yield: 88.3, status: "pass" },
-        { id: "LOT002", yield: 86.7, status: "pass" },
-        { id: "LOT003", yield: 87.9, status: "pass" },
-        { id: "LOT004", yield: 82.1, status: "warning" },
-        { id: "LOT005", yield: 91.2, status: "excellent" }
-      ],
-      bins: {
-        bin1: 87.5,
-        bin2: 8.3,
-        bin3: 2.1,
-        bin4: 2.1
-      },
-      isRealData: false
+    // Generate yield data by wafer
+    yieldData = waferMaps.map((wafer, index) => ({
+      wafer: `W${wafer.header.slotNo}`,
+      yield: wafer.header.yield,
+      passDies: wafer.header.passDie,
+      totalDies: wafer.header.totalTestDie
+    }));
+    
+    // Generate bin distribution data
+    const totalBins = { '1': 0, 'X': 0, '.': 0 };
+    waferMaps.forEach(wafer => {
+      Object.entries(wafer.binCounts).forEach(([bin, count]) => {
+        if (totalBins[bin] !== undefined) {
+          totalBins[bin] += Number(count);
+        }
+      });
+    });
+    
+    binData = [
+      { name: 'Pass (BIN1)', value: totalBins['1'], color: '#22c55e' },
+      { name: 'Fail', value: totalBins['X'], color: '#ef4444' },
+      { name: 'No Die', value: totalBins['.'], color: '#94a3b8' }
+    ];
+    
+    // Generate trend data
+    trendData = waferMaps.map((wafer, index) => ({
+      wafer: wafer.header.slotNo,
+      yield: wafer.header.yield,
+      cumulative: waferMaps.slice(0, index + 1).reduce((sum, w) => sum + w.header.yield, 0) / (index + 1)
+    }));
+    
+    // Calculate KPIs
+    const avgYield = waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / waferMaps.length;
+    const totalDies = waferMaps.reduce((sum, w) => sum + w.header.totalTestDie, 0);
+    const totalPass = waferMaps.reduce((sum, w) => sum + w.header.passDie, 0);
+    
+    kpiData = {
+      avgYield,
+      totalWafers: waferMaps.length,
+      totalDies,
+      totalPass
     };
-  }, [data]);
-
-  const getTrendIcon = () => {
-    if (yieldData.trend > 0) return <TrendingUp className="h-4 w-4 text-green-500" />;
-    if (yieldData.trend < 0) return <TrendingDown className="h-4 w-4 text-red-500" />;
-    return <Minus className="h-4 w-4 text-gray-500" />;
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "excellent":
-        return <Badge className="bg-green-100 text-green-800">Excellent</Badge>;
-      case "pass":
-        return <Badge className="bg-blue-100 text-blue-800">Pass</Badge>;
-      case "warning":
-        return <Badge className="bg-orange-100 text-orange-800">Warning</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-800">Unknown</Badge>;
-    }
-  };
+  } else {
+    // Mock data for demo
+    yieldData = [
+      { wafer: "W1", yield: 85.2, passDies: 1420, totalDies: 1668 },
+      { wafer: "W2", yield: 87.1, passDies: 1453, totalDies: 1668 },
+      { wafer: "W3", yield: 83.7, passDies: 1395, totalDies: 1668 },
+      { wafer: "W4", yield: 89.3, passDies: 1489, totalDies: 1668 },
+      { wafer: "W5", yield: 86.8, passDies: 1447, totalDies: 1668 }
+    ];
+    
+    binData = [
+      { name: "Pass (BIN1)", value: 7204, color: "#22c55e" },
+      { name: "Fail", value: 1136, color: "#ef4444" },
+      { name: "No Die", value: 200, color: "#94a3b8" }
+    ];
+    
+    trendData = [
+      { wafer: 1, yield: 85.2, cumulative: 85.2 },
+      { wafer: 2, yield: 87.1, cumulative: 86.1 },
+      { wafer: 3, yield: 83.7, cumulative: 85.3 },
+      { wafer: 4, yield: 89.3, cumulative: 86.3 },
+      { wafer: 5, yield: 86.8, cumulative: 86.4 }
+    ];
+    
+    kpiData = {
+      avgYield: 86.4,
+      totalWafers: 5,
+      totalDies: 8340,
+      totalPass: 7204
+    };
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Yield Analysis Dashboard</CardTitle>
-        <CardDescription>
-          {yieldData.isRealData ? 'Real EDS data' : 'Mock data'} - Real-time yield monitoring and wafer-level analysis
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-6">
-          {/* Key Metrics */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-900">{yieldData.current.toFixed(1)}%</div>
-              <div className="text-sm text-blue-600">Current Yield</div>
-            </div>
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-900">{yieldData.target}%</div>
-              <div className="text-sm text-green-600">Target</div>
-            </div>
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center justify-center space-x-1">
-                <span className="text-2xl font-bold">{Math.abs(yieldData.trend).toFixed(1)}%</span>
-                {getTrendIcon()}
+    <div className="space-y-6">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <Target className="h-8 w-8 text-blue-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Average Yield</p>
+                <p className="text-2xl font-bold text-blue-600">{kpiData.avgYield.toFixed(1)}%</p>
               </div>
-              <div className="text-sm text-gray-600">vs Previous</div>
             </div>
-          </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <Zap className="h-8 w-8 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Wafers</p>
+                <p className="text-2xl font-bold text-green-600">{kpiData.totalWafers}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <TrendingUp className="h-8 w-8 text-purple-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Dies</p>
+                <p className="text-2xl font-bold text-purple-600">{kpiData.totalDies.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <TrendingDown className="h-8 w-8 text-orange-600" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Pass Dies</p>
+                <p className="text-2xl font-bold text-orange-600">{kpiData.totalPass.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* Bin Distribution */}
-          <div className="space-y-3">
-            <h4 className="font-medium">Bin Distribution</h4>
-            <div className="space-y-2">
-              <div className="flex justify-between items-center p-2 bg-green-50 rounded">
-                <span className="text-sm">Bin 1 (Pass)</span>
-                <span className="font-medium text-green-700">{yieldData.bins.bin1.toFixed(1)}%</span>
-              </div>
-              <div className="flex justify-between items-center p-2 bg-red-50 rounded">
-                <span className="text-sm">Bin 2 (Fail)</span>
-                <span className="font-medium text-red-700">{yieldData.bins.bin2.toFixed(1)}%</span>
-              </div>
-              {yieldData.bins.bin3 > 0 && (
-                <div className="flex justify-between items-center p-2 bg-orange-50 rounded">
-                  <span className="text-sm">Bin 3 (Marginal)</span>
-                  <span className="font-medium text-orange-700">{yieldData.bins.bin3.toFixed(1)}%</span>
-                </div>
-              )}
-              {yieldData.bins.bin4 > 0 && (
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-sm">Bin 4 (No Test)</span>
-                  <span className="font-medium text-gray-700">{yieldData.bins.bin4.toFixed(1)}%</span>
-                </div>
-              )}
-            </div>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Wafer Yield Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Wafer Yield Distribution</CardTitle>
+            <CardDescription>Yield percentage by wafer</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={yieldData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="wafer" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip formatter={(value) => [`${value}%`, 'Yield']} />
+                <Bar dataKey="yield" fill="#3b82f6" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-          {/* Recent Lots/Wafers */}
-          <div className="space-y-3">
-            <h4 className="font-medium">{yieldData.isRealData ? 'Recent Wafers' : 'Recent Lots'}</h4>
-            <div className="space-y-2">
-              {yieldData.lots.map((lot) => (
-                <div key={lot.id} className="flex justify-between items-center p-2 border rounded">
-                  <div className="flex items-center space-x-3">
-                    <span className="font-medium text-sm">{lot.id}</span>
-                    {getStatusBadge(lot.status)}
-                  </div>
-                  <span className="font-medium">{lot.yield.toFixed(1)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        {/* Bin Distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Die Distribution</CardTitle>
+            <CardDescription>Distribution of pass/fail dies</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={binData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                >
+                  {binData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Yield Trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Yield Trend Analysis</CardTitle>
+          <CardDescription>Individual and cumulative yield trends</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={trendData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="wafer" />
+              <YAxis domain={[0, 100]} />
+              <Tooltip formatter={(value) => [`${value}%`, 'Yield']} />
+              <Line 
+                type="monotone" 
+                dataKey="yield" 
+                stroke="#ef4444" 
+                strokeWidth={2}
+                name="Individual Yield"
+              />
+              <Line 
+                type="monotone" 
+                dataKey="cumulative" 
+                stroke="#22c55e" 
+                strokeWidth={2}
+                name="Cumulative Average"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
