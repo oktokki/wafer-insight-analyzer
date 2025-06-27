@@ -12,6 +12,52 @@ interface DataUploadProps {
   onDataUpload: (data: any) => void;
 }
 
+// Helper function to combine STDF results
+const combineStdfResults = (results: ParsedStdfData[]): ParsedStdfData => {
+  if (results.length === 0) {
+    throw new Error('No STDF results to combine');
+  }
+  
+  if (results.length === 1) {
+    return results[0];
+  }
+  
+  // Combine multiple STDF files
+  const combined = { ...results[0] };
+  
+  // Combine parts from all files
+  combined.parts = [];
+  results.forEach(result => {
+    combined.parts.push(...result.parts);
+  });
+  
+  // Recalculate summary
+  const totalParts = combined.parts.length;
+  const passParts = combined.parts.filter(p => p.hardBin === 1).length;
+  const failParts = totalParts - passParts;
+  
+  combined.summary = {
+    totalParts,
+    passParts,
+    failParts,
+    yieldPercentage: totalParts > 0 ? (passParts / totalParts) * 100 : 0,
+    testNames: [...new Set(results.flatMap(r => r.summary.testNames))]
+  };
+  
+  // Combine bin summaries
+  combined.binSummary = {};
+  results.forEach(result => {
+    Object.entries(result.binSummary).forEach(([bin, data]) => {
+      if (!combined.binSummary[bin]) {
+        combined.binSummary[bin] = { count: 0, description: data.description };
+      }
+      combined.binSummary[bin].count += data.count;
+    });
+  });
+  
+  return combined;
+};
+
 export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -87,7 +133,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           lots: 1,
           wafers: parsed.waferMaps.length,
           yield: parsed.waferMaps.length > 0 
-            ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsed.waferMaps.length / 100
+            ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yieldPercentage, 0) / parsed.waferMaps.length / 100
             : (parsed.lotSummary?.overallStats.overallYield || 0) / 100,
           files: supportedFiles.map(f => f.name),
           edsData: parsed
@@ -112,7 +158,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
         );
         
         // Combine results from multiple STDF files
-        const combinedStdfData = this.combineStdfResults(stdfResults);
+        const combinedStdfData = combineStdfResults(stdfResults);
         setParsedStdfData(combinedStdfData);
         
         const processedData = {
@@ -158,51 +204,6 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
       setIsProcessing(false);
     }
   };
-
-  private combineStdfResults(results: ParsedStdfData[]): ParsedStdfData {
-    if (results.length === 0) {
-      throw new Error('No STDF results to combine');
-    }
-    
-    if (results.length === 1) {
-      return results[0];
-    }
-    
-    // Combine multiple STDF files
-    const combined = { ...results[0] };
-    
-    // Combine parts from all files
-    combined.parts = [];
-    results.forEach(result => {
-      combined.parts.push(...result.parts);
-    });
-    
-    // Recalculate summary
-    const totalParts = combined.parts.length;
-    const passParts = combined.parts.filter(p => p.hardBin === 1).length;
-    const failParts = totalParts - passParts;
-    
-    combined.summary = {
-      totalParts,
-      passParts,
-      failParts,
-      yieldPercentage: totalParts > 0 ? (passParts / totalParts) * 100 : 0,
-      testNames: [...new Set(results.flatMap(r => r.summary.testNames))]
-    };
-    
-    // Combine bin summaries
-    combined.binSummary = {};
-    results.forEach(result => {
-      Object.entries(result.binSummary).forEach(([bin, data]) => {
-        if (!combined.binSummary[bin]) {
-          combined.binSummary[bin] = { count: 0, description: data.description };
-        }
-        combined.binSummary[bin].count += data.count;
-      });
-    });
-    
-    return combined;
-  }
 
   const removeFile = (index: number) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
@@ -294,7 +295,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
                   <div>
                     <span className="font-medium">Average Yield:</span> {' '}
                     {parsedData.waferMaps.length > 0 
-                      ? (parsedData.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsedData.waferMaps.length).toFixed(2)
+                      ? (parsedData.waferMaps.reduce((sum, w) => sum + w.header.yieldPercentage, 0) / parsedData.waferMaps.length).toFixed(2)
                       : parsedData.lotSummary?.overallStats.overallYield.toFixed(2) || 0}%
                   </div>
                 </div>
