@@ -1,4 +1,3 @@
-
 export interface StdfHeader {
   fileVersion: string;
   lotId: string;
@@ -41,7 +40,7 @@ export interface ParsedStdfData {
     totalParts: number;
     passParts: number;
     failParts: number;
-    yield: number;
+    yieldPercentage: number;
     testNames: string[];
   };
   binSummary: {
@@ -125,7 +124,7 @@ export class StdfParser {
     const totalParts = parts.length;
     const passParts = parts.filter(p => p.hardBin === 1).length;
     const failParts = totalParts - passParts;
-    const yield = totalParts > 0 ? (passParts / totalParts) * 100 : 0;
+    const yieldPercentage = totalParts > 0 ? (passParts / totalParts) * 100 : 0;
     
     return {
       header: {
@@ -146,7 +145,7 @@ export class StdfParser {
         totalParts,
         passParts,
         failParts,
-        yield,
+        yieldPercentage,
         testNames
       },
       binSummary: {
