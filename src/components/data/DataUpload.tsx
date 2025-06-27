@@ -1,3 +1,4 @@
+
 import { useState, useCallback } from "react";
 import { Upload, FileX, CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -133,7 +134,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           lots: 1,
           wafers: parsed.waferMaps.length,
           yield: parsed.waferMaps.length > 0 
-            ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yieldPercentage, 0) / parsed.waferMaps.length / 100
+            ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsed.waferMaps.length / 100
             : (parsed.lotSummary?.overallStats.overallYield || 0) / 100,
           files: supportedFiles.map(f => f.name),
           edsData: parsed
@@ -295,7 +296,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
                   <div>
                     <span className="font-medium">Average Yield:</span> {' '}
                     {parsedData.waferMaps.length > 0 
-                      ? (parsedData.waferMaps.reduce((sum, w) => sum + w.header.yieldPercentage, 0) / parsedData.waferMaps.length).toFixed(2)
+                      ? (parsedData.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsedData.waferMaps.length).toFixed(2)
                       : parsedData.lotSummary?.overallStats.overallYield.toFixed(2) || 0}%
                   </div>
                 </div>
