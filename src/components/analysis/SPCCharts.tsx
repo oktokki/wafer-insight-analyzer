@@ -41,7 +41,7 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
     const waferMaps = data.edsData.waferMaps;
     
     // Generate SPC data from wafer yields
-    spcData = waferMaps.map((wafer, index) => ({
+    spcData = waferMaps.map((wafer: any, index: number) => ({
       sample: index + 1,
       waferId: wafer.header.waferId,
       yield: wafer.header.yield,
@@ -51,19 +51,16 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
     }));
     
     // Calculate control limits using proper SPC formulas
-    const yields = spcData.map(d => d.yield);
+    const yields = spcData.map((d: any) => d.yield);
     const n = yields.length;
-    const mean = yields.reduce((sum, val) => sum + val, 0) / n;
+    const mean = yields.reduce((sum: number, val: number) => sum + val, 0) / n;
     
     // Calculate moving range for control limits
-    const movingRanges = yields.slice(1).map((val, i) => Math.abs(val - yields[i]));
-    const averageMovingRange = movingRanges.reduce((sum, val) => sum + val, 0) / movingRanges.length;
+    const movingRanges = yields.slice(1).map((val: number, i: number) => Math.abs(val - yields[i]));
+    const averageMovingRange = movingRanges.reduce((sum: number, val: number) => sum + val, 0) / movingRanges.length;
     
     // Control limit constants for individual charts (n=1)
     const d2 = 1.128; // constant for n=1
-    const d3 = 0; // constant for n=1
-    const d4 = 3.267; // constant for n=1
-    
     const sigma = averageMovingRange / d2;
     
     controlLimits = {
@@ -82,7 +79,7 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
     const cpk = Math.min(cpu, cpl);
     
     // Calculate Pp and Ppk (process performance indices)
-    const actualStdDev = Math.sqrt(yields.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (n - 1));
+    const actualStdDev = Math.sqrt(yields.reduce((sum: number, val: number) => sum + Math.pow(val - mean, 2), 0) / (n - 1));
     const pp = (controlLimits.usl - controlLimits.lsl) / (6 * actualStdDev);
     const ppk = Math.min(
       (controlLimits.usl - mean) / (3 * actualStdDev),
@@ -92,7 +89,7 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
     processCapability = { cp, cpk, pp, ppk, sigma, actualStdDev };
     
     // Trend analysis - detect runs, trends, and outliers
-    const outOfControlPoints = spcData.filter(point => 
+    const outOfControlPoints = spcData.filter((point: any) => 
       point.yield > controlLimits.ucl || point.yield < controlLimits.lcl
     );
     
@@ -132,28 +129,28 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
     
     for (let i = 0; i < 25; i++) {
       // Add some realistic variation patterns
-      let yield = baseMean + (Math.random() - 0.5) * baseSigma * 2;
+      let yieldValue = baseMean + (Math.random() - 0.5) * baseSigma * 2;
       
       // Add occasional special cause variation
       if (Math.random() < 0.1) {
-        yield += (Math.random() - 0.5) * baseSigma * 4;
+        yieldValue += (Math.random() - 0.5) * baseSigma * 4;
       }
       
       // Add slight trend in the middle
       if (i > 10 && i < 20) {
-        yield += (i - 15) * 0.2;
+        yieldValue += (i - 15) * 0.2;
       }
       
-      mockYields.push(Math.max(75, Math.min(95, yield)));
+      mockYields.push(Math.max(75, Math.min(95, yieldValue)));
     }
     
-    spcData = mockYields.map((yield, i) => ({
+    spcData = mockYields.map((yieldValue, i) => ({
       sample: i + 1,
       waferId: `W${i + 1}`,
-      yield,
+      yield: yieldValue,
       passDies: Math.floor(1400 + Math.random() * 200),
       totalDies: 1668,
-      defectRate: Math.floor(((100 - yield) / 100) * 1000000)
+      defectRate: Math.floor(((100 - yieldValue) / 100) * 1000000)
     }));
     
     controlLimits = {
@@ -302,7 +299,7 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
                   y={controlLimits.mean} 
                   stroke="#22c55e" 
                   strokeDasharray="8 8" 
-                  label={{ value: "X̄", position: "topRight" }}
+                  label={{ value: "Mean", position: "topRight" }}
                 />
                 <ReferenceLine 
                   y={controlLimits.lcl} 
@@ -361,7 +358,7 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
                 <p><strong>Interpretation:</strong></p>
                 <p>• Cpk ≥ 1.33: Excellent process capability</p>
                 <p>• Cpk ≥ 1.00: Acceptable process capability</p>
-                <p>• Cpk < 1.00: Process improvement needed</p>
+                <p>• Cpk &lt; 1.00: Process improvement needed</p>
               </div>
             </div>
           </CardContent>
@@ -391,7 +388,7 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
               {trendAnalysis.trends.length > 0 && (
                 <div className="p-4 bg-yellow-50 rounded-lg">
                   <p className="font-medium text-yellow-800 mb-2">Detected Trends:</p>
-                  {trendAnalysis.trends.map((trend, index) => (
+                  {trendAnalysis.trends.map((trend: any, index: number) => (
                     <p key={index} className="text-sm text-yellow-700">
                       • {trend.count} consecutive points trending {trend.direction} 
                       (samples {trend.start + 1}-{trend.end + 1})
