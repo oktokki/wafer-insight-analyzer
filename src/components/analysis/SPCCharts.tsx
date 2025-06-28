@@ -279,13 +279,13 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
                   y={controlLimits.usl} 
                   stroke="#f59e0b" 
                   strokeDasharray="10 5" 
-                  label={{ value: "USL", position: "topRight" }}
+                  label={{ value: "USL", position: "top" }}
                 />
                 <ReferenceLine 
                   y={controlLimits.lsl} 
                   stroke="#f59e0b" 
                   strokeDasharray="10 5" 
-                  label={{ value: "LSL", position: "bottomRight" }}
+                  label={{ value: "LSL", position: "bottom" }}
                 />
                 
                 {/* Control Limits */}
@@ -293,24 +293,24 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
                   y={controlLimits.ucl} 
                   stroke="#ef4444" 
                   strokeDasharray="5 5" 
-                  label={{ value: "UCL", position: "topRight" }}
+                  label={{ value: "UCL", position: "top" }}
                 />
                 <ReferenceLine 
                   y={controlLimits.mean} 
                   stroke="#22c55e" 
                   strokeDasharray="8 8" 
-                  label={{ value: "Mean", position: "topRight" }}
+                  label={{ value: "Mean", position: "top" }}
                 />
                 <ReferenceLine 
                   y={controlLimits.lcl} 
                   stroke="#ef4444" 
                   strokeDasharray="5 5" 
-                  label={{ value: "LCL", position: "bottomRight" }}
+                  label={{ value: "LCL", position: "bottom" }}
                 />
                 
                 <Line 
                   type="monotone" 
-                  dataKey="yield" 
+                  dataKey="yieldValue" 
                   stroke="var(--color-yield)"
                   strokeWidth={2}
                   dot={{ fill: 'var(--color-yield)', strokeWidth: 2, r: 4 }}
