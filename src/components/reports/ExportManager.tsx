@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, FileText, FileSpreadsheet, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { exportToPDF } from "@/utils/pdfExporter";
+import { exportToExcel } from "@/utils/excelExporter";
 
 interface ExportManagerProps {
   data?: any;
@@ -39,29 +40,23 @@ export const ExportManager = ({ data }: ExportManagerProps) => {
     setIsExporting(true);
 
     try {
-      // Simulate export process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Generate export data
       const exportData = generateExportData(data, exportSections);
       
       if (exportFormat === 'csv') {
         downloadCSV(exportData);
       } else if (exportFormat === 'excel') {
-        // In a real implementation, you'd use a library like xlsx
-        toast({
-          title: "Excel export",
-          description: "Excel export functionality would be implemented with xlsx library",
-        });
+        await exportToExcel(exportData, exportSections);
       } else {
-        // PDF export
-        toast({
-          title: "PDF export",
-          description: "PDF export functionality would be implemented with jsPDF library",
-        });
+        await exportToPDF(exportData, exportSections);
       }
 
+      toast({
+        title: "Export successful",
+        description: `${exportFormat.toUpperCase()} file has been downloaded`,
+      });
+
     } catch (error) {
+      console.error('Export error:', error);
       toast({
         title: "Export failed",
         description: "Failed to export data. Please try again.",
