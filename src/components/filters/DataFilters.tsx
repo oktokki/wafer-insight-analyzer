@@ -29,9 +29,9 @@ export const DataFilters = ({ data, onFilterChange }: DataFiltersProps) => {
 
   const hasData = data?.edsData?.waferMaps?.length > 0;
   
-  // Extract unique values for filter options
-  const devices = hasData ? [...new Set(data.edsData.waferMaps.map((w: any) => w.header.device))] : [];
-  const lots = hasData ? [...new Set(data.edsData.waferMaps.map((w: any) => w.header.lotNo))] : [];
+  // Extract unique values for filter options with proper typing
+  const devices: string[] = hasData ? [...new Set(data.edsData.waferMaps.map((w: any) => w.header.device).filter((device: any): device is string => typeof device === 'string'))] : [];
+  const lots: string[] = hasData ? [...new Set(data.edsData.waferMaps.map((w: any) => w.header.lotNo).filter((lot: any): lot is string => typeof lot === 'string'))] : [];
 
   const updateFilters = (newFilters: Partial<FilterState>) => {
     const updatedFilters = { ...filters, ...newFilters };
@@ -121,7 +121,7 @@ export const DataFilters = ({ data, onFilterChange }: DataFiltersProps) => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Devices</SelectItem>
-                {devices.map((device) => (
+                {devices.map((device: string) => (
                   <SelectItem key={device} value={device}>
                     {device}
                   </SelectItem>
@@ -139,7 +139,7 @@ export const DataFilters = ({ data, onFilterChange }: DataFiltersProps) => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Lots</SelectItem>
-                {lots.map((lot) => (
+                {lots.map((lot: string) => (
                   <SelectItem key={lot} value={lot}>
                     {lot}
                   </SelectItem>
