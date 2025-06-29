@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,8 +29,21 @@ export const DataFilters = ({ data, onFilterChange }: DataFiltersProps) => {
   const hasData = data?.edsData?.waferMaps?.length > 0;
   
   // Extract unique values for filter options with proper typing
-  const devices: string[] = hasData ? [...new Set(data.edsData.waferMaps.map((w: any) => w.header.device).filter((device: any): device is string => typeof device === 'string'))] : [];
-  const lots: string[] = hasData ? [...new Set(data.edsData.waferMaps.map((w: any) => w.header.lotNo).filter((lot: any): lot is string => typeof lot === 'string'))] : [];
+  const devices = hasData 
+    ? Array.from(new Set(
+        data.edsData.waferMaps
+          .map((w: any) => w.header.device)
+          .filter((device: any): device is string => typeof device === 'string')
+      ))
+    : [] as string[];
+  
+  const lots = hasData 
+    ? Array.from(new Set(
+        data.edsData.waferMaps
+          .map((w: any) => w.header.lotNo)
+          .filter((lot: any): lot is string => typeof lot === 'string')
+      ))
+    : [] as string[];
 
   const updateFilters = (newFilters: Partial<FilterState>) => {
     const updatedFilters = { ...filters, ...newFilters };
@@ -121,7 +133,7 @@ export const DataFilters = ({ data, onFilterChange }: DataFiltersProps) => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Devices</SelectItem>
-                {devices.map((device: string) => (
+                {devices.map((device) => (
                   <SelectItem key={device} value={device}>
                     {device}
                   </SelectItem>
@@ -139,7 +151,7 @@ export const DataFilters = ({ data, onFilterChange }: DataFiltersProps) => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Lots</SelectItem>
-                {lots.map((lot: string) => (
+                {lots.map((lot) => (
                   <SelectItem key={lot} value={lot}>
                     {lot}
                   </SelectItem>
