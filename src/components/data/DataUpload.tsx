@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from "react";
 import { Upload, FileX, CheckCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { EdsMapParser, ParsedEdsData } from "@/utils/edsMapParser";
 import { StdfParser, ParsedStdfData } from "@/utils/stdfParser";
 import { DataIntegrityReportComponent } from "./DataIntegrityReport";
+import JSZip from 'jszip';
 
 interface DataUploadProps {
   onDataUpload: (data: any) => void;
@@ -57,6 +57,33 @@ const combineStdfResults = (results: ParsedStdfData[]): ParsedStdfData => {
   });
   
   return combined;
+};
+
+// Helper function to extract ZIP files
+const extractZipFiles = async (zipFile: File): Promise<File[]> => {
+  const zip = new JSZip();
+  const zipData = await zip.loadAsync(zipFile);
+  const extractedFiles: File[] = [];
+  
+  for (const [filename, fileData] of Object.entries(zipData.files)) {
+    if (!fileData.dir) {
+      // Check if it's a supported file type
+      if (filename.match(/\.\d{2}$/) || 
+          filename.endsWith('.FAR') || 
+          filename.endsWith('.lotSumTXT') || 
+          filename.includes('lotSum') ||
+          filename.endsWith('.stdf') ||
+          filename.endsWith('.csv') ||
+          filename.endsWith('.txt')) {
+        
+        const blob = await fileData.async('blob');
+        const file = new File([blob], filename, { type: 'application/octet-stream' });
+        extractedFiles.push(file);
+      }
+    }
+  }
+  
+  return extractedFiles;
 };
 
 export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
@@ -115,13 +142,32 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
       return;
     }
 
-    setUploadedFiles(prev => [...prev, ...supportedFiles]);
     setIsProcessing(true);
 
     try {
+      // Extract ZIP files first
+      let allFiles: File[] = [];
+      for (const file of supportedFiles) {
+        if (file.name.endsWith('.zip')) {
+          console.log('Extracting ZIP file:', file.name);
+          const extractedFiles = await extractZipFiles(file);
+          console.log('Extracted files:', extractedFiles.map(f => f.name));
+          allFiles.push(...extractedFiles);
+          
+          toast({
+            title: "ZIP file extracted",
+            description: `Extracted ${extractedFiles.length} files from ${file.name}`,
+          });
+        } else {
+          allFiles.push(file);
+        }
+      }
+
+      setUploadedFiles(prev => [...prev, ...allFiles]);
+
       // Check if we have EDS-related files to parse
-      const mapFiles = supportedFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR') || f.name.endsWith('.lotSumTXT') || f.name.includes('lotSum'));
-      const stdfFiles = supportedFiles.filter(f => f.name.endsWith('.stdf') || f.name.endsWith('.stdf.gz'));
+      const mapFiles = allFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR') || f.name.endsWith('.lotSumTXT') || f.name.includes('lotSum'));
+      const stdfFiles = allFiles.filter(f => f.name.endsWith('.stdf') || f.name.endsWith('.stdf.gz'));
       
       if (mapFiles.length > 0) {
         console.log('Parsing EDS-related files:', mapFiles.map(f => f.name));
@@ -136,7 +182,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
           yield: parsed.waferMaps.length > 0 
             ? parsed.waferMaps.reduce((sum, w) => sum + w.header.yield, 0) / parsed.waferMaps.length / 100
             : (parsed.lotSummary?.overallStats.overallYield || 0) / 100,
-          files: supportedFiles.map(f => f.name),
+          files: allFiles.map(f => f.name),
           edsData: parsed
         };
         
