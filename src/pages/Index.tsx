@@ -1,5 +1,7 @@
 
 import { useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { LoginForm } from "@/components/auth/LoginForm";
 import { Sidebar } from "@/components/navigation/Sidebar";
 import { Header } from "@/components/navigation/Header";
 import { DataUpload } from "@/components/data/DataUpload";
@@ -11,8 +13,16 @@ import { CorrelationAnalysis } from "@/components/analysis/CorrelationAnalysis";
 import { ReportSummary } from "@/components/reports/ReportSummary";
 import { ExportManager } from "@/components/reports/ExportManager";
 import { DataFilters, FilterState } from "@/components/filters/DataFilters";
+import { DataPersistence } from "@/components/data/DataPersistence";
+import { RealTimeProcessor } from "@/components/realtime/RealTimeProcessor";
+import { AdvancedAnalytics } from "@/components/analytics/AdvancedAnalytics";
+import { AdvancedVisualizations } from "@/components/visualization/AdvancedVisualizations";
+import { APIIntegration } from "@/components/integration/APIIntegration";
+import { BatchProcessor } from "@/components/batch/BatchProcessor";
+import { CustomReportBuilder } from "@/components/reports/CustomReportBuilder";
 
 const Index = () => {
+  const { isAuthenticated } = useAuth();
   const [currentView, setCurrentView] = useState("dashboard");
   const [uploadedData, setUploadedData] = useState(null);
   const [filters, setFilters] = useState<FilterState>({
@@ -21,6 +31,11 @@ const Index = () => {
     deviceFilter: 'all',
     lotFilter: 'all'
   });
+
+  // If not authenticated, show login form
+  if (!isAuthenticated) {
+    return <LoginForm />;
+  }
 
   // Filter data based on current filters
   const getFilteredData = () => {
@@ -61,6 +76,27 @@ const Index = () => {
   };
 
   const filteredData = getFilteredData();
+
+  const handleSessionLoad = (session: any) => {
+    setUploadedData(session.data);
+    setFilters(session.filters);
+    setCurrentView(session.view);
+  };
+
+  const handleRealTimeData = (data: any) => {
+    console.log('Real-time data received:', data);
+    // In a real implementation, this would update the main data store
+  };
+
+  const handleAPIData = (data: any, source: string) => {
+    console.log('API data received from', source, ':', data);
+    // In a real implementation, this would merge with existing data
+  };
+
+  const handleBatchComplete = (results: any) => {
+    console.log('Batch processing complete:', results);
+    // In a real implementation, this would update analytics
+  };
 
   const renderMainContent = () => {
     switch (currentView) {
@@ -108,6 +144,27 @@ const Index = () => {
             <ExportManager data={filteredData} />
           </div>
         );
+      case "session-management":
+        return (
+          <DataPersistence
+            currentData={uploadedData}
+            currentFilters={filters}
+            currentView={currentView}
+            onLoadSession={handleSessionLoad}
+          />
+        );
+      case "real-time":
+        return <RealTimeProcessor onDataReceived={handleRealTimeData} />;
+      case "advanced-analytics":
+        return <AdvancedAnalytics data={filteredData} />;
+      case "advanced-visualizations":
+        return <AdvancedVisualizations data={filteredData} />;
+      case "api-integration":
+        return <APIIntegration onDataReceived={handleAPIData} />;
+      case "batch-processing":
+        return <BatchProcessor onBatchComplete={handleBatchComplete} />;
+      case "custom-reports":
+        return <CustomReportBuilder data={filteredData} />;
       default:
         return (
           <div className="space-y-6">
