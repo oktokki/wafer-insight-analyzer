@@ -2,12 +2,14 @@
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { EdsMapParser, ParsedEdsData } from "@/utils/edsMapParser";
+import { SecondFoundryParser, SecondFoundryMapData } from "@/utils/secondFoundryParser";
 import { StdfParser, ParsedStdfData } from "@/utils/stdfParser";
 import { extractZipFiles } from "@/utils/zipExtractor";
 import { combineStdfResults } from "@/utils/stdfCombiner";
 import { FileUploadZone } from "./FileUploadZone";
 import { UploadedFilesList } from "./UploadedFilesList";
 import { EdsDataDisplay } from "./EdsDataDisplay";
+import { SecondFoundryDataDisplay } from "./SecondFoundryDataDisplay";
 import { StdfDataDisplay } from "./StdfDataDisplay";
 
 interface DataUploadProps {
@@ -18,6 +20,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [parsedData, setParsedData] = useState<ParsedEdsData | null>(null);
+  const [parsedSecondFoundryData, setParsedSecondFoundryData] = useState<SecondFoundryMapData[] | null>(null);
   const [parsedStdfData, setParsedStdfData] = useState<ParsedStdfData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
@@ -26,6 +29,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
     // Filter for supported file types
     const supportedFiles = files.filter(file => 
       file.name.match(/\.\d{2}$/) || // .01, .02, etc.
+      file.name.match(/\.f\d{2}$/) || // .f01, .f02, etc. (Second foundry)
       file.name.endsWith('.FAR') ||
       file.name.endsWith('.stdf') || 
       file.name.endsWith('.stdf.gz') ||
@@ -39,7 +43,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
     if (supportedFiles.length === 0) {
       toast({
         title: "Invalid file format",
-        description: "Please upload EDS Map files (.01-.25, .FAR), Lot Summary files (.lotSumTXT), STDF files, Wafer Map CSV files, or ZIP archives.",
+        description: "Please upload EDS Map files (.01-.25, .FAR), Second Foundry files (.f01-.f25), Lot Summary files (.lotSumTXT), STDF files, Wafer Map CSV files, or ZIP archives.",
         variant: "destructive"
       });
       return;
@@ -68,13 +72,40 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
 
       setUploadedFiles(prev => [...prev, ...allFiles]);
 
-      // Check if we have EDS-related files to parse
-      const mapFiles = allFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR') || f.name.endsWith('.lotSumTXT') || f.name.includes('lotSum'));
+      // Categorize files by type
+      const edsMapFiles = allFiles.filter(f => f.name.match(/\.\d{2}$/) || f.name.endsWith('.FAR') || f.name.endsWith('.lotSumTXT') || f.name.includes('lotSum'));
+      const secondFoundryFiles = allFiles.filter(f => f.name.match(/\.f\d{2}$/));
       const stdfFiles = allFiles.filter(f => f.name.endsWith('.stdf') || f.name.endsWith('.stdf.gz'));
       
-      if (mapFiles.length > 0) {
-        console.log('Parsing EDS-related files:', mapFiles.map(f => f.name));
-        const parsed = await EdsMapParser.parseEdsFiles(mapFiles);
+      if (secondFoundryFiles.length > 0) {
+        console.log('Parsing Second Foundry files:', secondFoundryFiles.map(f => f.name));
+        const parsed = await SecondFoundryParser.parseSecondFoundryFiles(secondFoundryFiles);
+        setParsedSecondFoundryData(parsed);
+        
+        const totalGood = parsed.reduce((sum, wafer) => sum + wafer.header.good, 0);
+        const totalFail = parsed.reduce((sum, wafer) => sum + wafer.header.fail, 0);
+        const averageYield = parsed.length > 0 
+          ? parsed.reduce((sum, wafer) => sum + wafer.yield, 0) / parsed.length / 100
+          : 0;
+        
+        const processedData = {
+          type: 'second-foundry',
+          lots: 1,
+          wafers: parsed.length,
+          yield: averageYield,
+          files: secondFoundryFiles.map(f => f.name),
+          secondFoundryData: parsed
+        };
+        
+        onDataUpload(processedData);
+        
+        toast({
+          title: "Second Foundry data loaded successfully",
+          description: `Processed ${parsed.length} wafer maps with ${totalGood.toLocaleString()} good dies at ${(averageYield * 100).toFixed(1)}% average yield`,
+        });
+      } else if (edsMapFiles.length > 0) {
+        console.log('Parsing EDS-related files:', edsMapFiles.map(f => f.name));
+        const parsed = await EdsMapParser.parseEdsFiles(edsMapFiles);
         setParsedData(parsed);
         
         // Convert to format expected by existing components
@@ -174,6 +205,8 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
       />
 
       {parsedData && <EdsDataDisplay parsedData={parsedData} />}
+
+      {parsedSecondFoundryData && <SecondFoundryDataDisplay parsedData={parsedSecondFoundryData} />}
 
       {parsedStdfData && <StdfDataDisplay parsedStdfData={parsedStdfData} />}
     </div>

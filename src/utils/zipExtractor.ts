@@ -10,6 +10,7 @@ export const extractZipFiles = async (zipFile: File): Promise<File[]> => {
     if (!fileData.dir) {
       // Check if it's a supported file type
       if (filename.match(/\.\d{2}$/) || 
+          filename.match(/\.f\d{2}$/) || // Second foundry format
           filename.endsWith('.FAR') || 
           filename.endsWith('.lotSumTXT') || 
           filename.includes('lotSum') ||

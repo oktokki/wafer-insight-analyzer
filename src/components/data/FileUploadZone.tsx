@@ -46,7 +46,7 @@ export const FileUploadZone = ({ onFilesDrop, isProcessing, isDragging, onDragSt
       <CardHeader>
         <CardTitle>Data Upload</CardTitle>
         <CardDescription>
-          Upload EDS Map files (.01-.25, .FAR), Lot Summary files (.lotSumTXT), STDF files, Wafer Map CSV files, or ZIP archives
+          Upload EDS Map files (.01-.25, .FAR), Second Foundry files (.f01-.f25), Lot Summary files (.lotSumTXT), STDF files, Wafer Map CSV files, or ZIP archives
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -66,12 +66,12 @@ export const FileUploadZone = ({ onFilesDrop, isProcessing, isDragging, onDragSt
             Drop files here or click to upload
           </p>
           <p className="text-gray-500 mb-4">
-            Supports: EDS Maps (.01-.25, .FAR), Lot Summary (.lotSumTXT), STDF (.stdf, .gz), CSV, TXT, ZIP files
+            Supports: EDS Maps (.01-.25, .FAR), Second Foundry (.f01-.f25), Lot Summary (.lotSumTXT), STDF (.stdf, .gz), CSV, TXT, ZIP files
           </p>
           <input
             type="file"
             multiple
-            accept=".01,.02,.03,.04,.05,.06,.07,.08,.09,.10,.11,.12,.13,.14,.15,.16,.17,.18,.19,.20,.21,.22,.23,.24,.25,.FAR,.stdf,.gz,.csv,.txt,.lotSumTXT,.zip"
+            accept=".01,.02,.03,.04,.05,.06,.07,.08,.09,.10,.11,.12,.13,.14,.15,.16,.17,.18,.19,.20,.21,.22,.23,.24,.25,.FAR,.f01,.f02,.f03,.f04,.f05,.f06,.f07,.f08,.f09,.f10,.f11,.f12,.f13,.f14,.f15,.f16,.f17,.f18,.f19,.f20,.f21,.f22,.f23,.f24,.f25,.stdf,.gz,.csv,.txt,.lotSumTXT,.zip"
             onChange={handleFileInput}
             className="hidden"
             id="file-upload"
