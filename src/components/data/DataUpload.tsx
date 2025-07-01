@@ -85,7 +85,7 @@ export const DataUpload = ({ onDataUpload }: DataUploadProps) => {
         const totalGood = parsed.reduce((sum, wafer) => sum + wafer.header.good, 0);
         const totalFail = parsed.reduce((sum, wafer) => sum + wafer.header.fail, 0);
         const averageYield = parsed.length > 0 
-          ? parsed.reduce((sum, wafer) => sum + wafer.yield, 0) / parsed.length / 100
+          ? parsed.reduce((sum, wafer) => sum + wafer.yieldPercentage, 0) / parsed.length / 100
           : 0;
         
         const processedData = {

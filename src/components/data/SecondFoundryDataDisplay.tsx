@@ -11,7 +11,7 @@ export const SecondFoundryDataDisplay = ({ parsedData }: SecondFoundryDataDispla
   const totalGood = parsedData.reduce((sum, wafer) => sum + wafer.header.good, 0);
   const totalFail = parsedData.reduce((sum, wafer) => sum + wafer.header.fail, 0);
   const averageYield = parsedData.length > 0 
-    ? parsedData.reduce((sum, wafer) => sum + wafer.yield, 0) / parsedData.length 
+    ? parsedData.reduce((sum, wafer) => sum + wafer.yieldPercentage, 0) / parsedData.length 
     : 0;
 
   return (
@@ -47,7 +47,7 @@ export const SecondFoundryDataDisplay = ({ parsedData }: SecondFoundryDataDispla
                   </div>
                   <div className="flex space-x-2">
                     <Badge variant="default">
-                      {wafer.yield.toFixed(1)}%
+                      {wafer.yieldPercentage.toFixed(1)}%
                     </Badge>
                     <Badge variant="outline">
                       {wafer.header.x}×{wafer.header.y}

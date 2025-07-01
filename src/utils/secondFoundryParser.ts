@@ -13,7 +13,7 @@ export interface SecondFoundryMapData {
   header: SecondFoundryHeader;
   coordinateMap: string[][];
   binCounts: { [key: string]: number };
-  yield: number;
+  yieldPercentage: number;
 }
 
 export class SecondFoundryParser {
@@ -93,15 +93,15 @@ export class SecondFoundryParser {
       console.warn(`FAIL count mismatch: Header=${header.fail}, Actual=${actualFail}`);
     }
     
-    // Calculate yield
+    // Calculate yield percentage
     const totalDies = (header.good || 0) + (header.fail || 0);
-    const yield = totalDies > 0 ? ((header.good || 0) / totalDies) * 100 : 0;
+    const yieldPercentage = totalDies > 0 ? ((header.good || 0) / totalDies) * 100 : 0;
     
     return {
       header: header as SecondFoundryHeader,
       coordinateMap,
       binCounts,
-      yield
+      yieldPercentage
     };
   }
   
