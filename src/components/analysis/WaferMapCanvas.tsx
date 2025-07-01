@@ -1,14 +1,16 @@
 
 import React, { useEffect, useRef } from 'react';
 import { WaferMapData } from '@/utils/edsMapParser';
+import { SecondFoundryMapData } from '@/utils/secondFoundryParser';
 
 interface WaferMapCanvasProps {
-  waferData: WaferMapData;
+  waferData: WaferMapData | SecondFoundryMapData;
   width?: number;
   height?: number;
+  dataType?: 'eds' | 'second-foundry';
 }
 
-export const WaferMapCanvas = ({ waferData, width = 400, height = 400 }: WaferMapCanvasProps) => {
+export const WaferMapCanvas = ({ waferData, width = 400, height = 400, dataType = 'eds' }: WaferMapCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -38,9 +40,10 @@ export const WaferMapCanvas = ({ waferData, width = 400, height = 400 }: WaferMa
     // Color mapping for different bins
     const getColor = (value: string) => {
       switch (value) {
-        case '1': return '#22c55e'; // Green for pass
+        case '1': return '#22c55e'; // Green for pass/good
         case 'X': return '#ef4444'; // Red for fail
         case '.': return '#f3f4f6'; // Light gray for no die
+        case 'T': return '#f59e0b'; // Amber for test dies
         default: return '#94a3b8'; // Gray for unknown
       }
     };
@@ -72,7 +75,7 @@ export const WaferMapCanvas = ({ waferData, width = 400, height = 400 }: WaferMa
     ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
     ctx.stroke();
 
-  }, [waferData, width, height]);
+  }, [waferData, width, height, dataType]);
 
   return (
     <div className="space-y-2">
@@ -85,7 +88,7 @@ export const WaferMapCanvas = ({ waferData, width = 400, height = 400 }: WaferMa
       <div className="flex justify-center space-x-4 text-sm">
         <div className="flex items-center space-x-1">
           <div className="w-3 h-3 bg-green-500 rounded"></div>
-          <span>Pass (BIN1)</span>
+          <span>{dataType === 'eds' ? 'Pass (BIN1)' : 'Good'}</span>
         </div>
         <div className="flex items-center space-x-1">
           <div className="w-3 h-3 bg-red-500 rounded"></div>
@@ -95,6 +98,12 @@ export const WaferMapCanvas = ({ waferData, width = 400, height = 400 }: WaferMa
           <div className="w-3 h-3 bg-gray-200 rounded"></div>
           <span>No Die</span>
         </div>
+        {dataType === 'second-foundry' && (
+          <div className="flex items-center space-x-1">
+            <div className="w-3 h-3 bg-amber-500 rounded"></div>
+            <span>Test</span>
+          </div>
+        )}
       </div>
     </div>
   );
