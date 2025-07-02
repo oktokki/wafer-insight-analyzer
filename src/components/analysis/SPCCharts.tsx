@@ -310,7 +310,7 @@ export const SPCCharts = ({ data }: SPCChartsProps) => {
                 
                 <Line 
                   type="monotone" 
-                  dataKey="yieldValue" 
+                  dataKey="yield" 
                   stroke="var(--color-yield)"
                   strokeWidth={2}
                   dot={{ fill: 'var(--color-yield)', strokeWidth: 2, r: 4 }}
