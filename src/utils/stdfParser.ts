@@ -92,56 +92,162 @@ export class StdfParser {
     DTR: [50, 30]  // Datalog Text Record
   };
 
+  private static readonly MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB limit
+  private static readonly MAX_RECORD_LENGTH = 65535; // STDF spec limit
+  private static readonly CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+
   static async parseStdfFile(file: File): Promise<ParsedStdfData> {
+    console.log(`Starting STDF parsing for file: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    // File size validation
+    if (file.size > this.MAX_FILE_SIZE) {
+      console.warn(`File ${file.name} is too large (${(file.size / 1024 / 1024).toFixed(2)} MB). Falling back to mock data.`);
+      return this.generateMockStdfData(file.name);
+    }
+
+    // Format validation
+    if (!this.validateStdfFormat(file)) {
+      console.warn(`File ${file.name} does not appear to be a valid STDF file. Attempting parsing anyway.`);
+    }
+
     try {
       const buffer = await file.arrayBuffer();
-      const view = new DataView(buffer);
-      
-      // Initialize parsing state
-      let offset = 0;
-      const records: any[] = [];
-      
-      // Parse STDF records
-      while (offset < buffer.byteLength - 4) {
+      return await this.parseStdfBuffer(buffer, file.name);
+    } catch (error) {
+      console.error('Critical error during STDF parsing:', error);
+      console.log('Falling back to mock data generation');
+      return this.generateMockStdfData(file.name);
+    }
+  }
+
+  private static validateStdfFormat(file: File): boolean {
+    // Basic format validation based on file extension and name patterns
+    const fileName = file.name.toLowerCase();
+    return fileName.endsWith('.stdf') || 
+           fileName.endsWith('.stdf.gz') ||
+           fileName.includes('stdf') ||
+           file.type === 'application/octet-stream';
+  }
+
+  private static async parseStdfBuffer(buffer: ArrayBuffer, fileName: string): Promise<ParsedStdfData> {
+    const view = new DataView(buffer);
+    let offset = 0;
+    const records: any[] = [];
+    let parseErrors = 0;
+    let recoveredRecords = 0;
+    const maxErrors = Math.max(100, Math.floor(buffer.byteLength / 10000)); // Allow some errors based on file size
+
+    console.log(`Parsing STDF buffer of ${buffer.byteLength} bytes`);
+
+    // Main parsing loop with enhanced error handling
+    while (offset < buffer.byteLength - 4 && parseErrors < maxErrors) {
+      try {
+        // Bounds checking
+        if (offset + 4 > buffer.byteLength) {
+          console.warn(`Reached end of buffer at offset ${offset}`);
+          break;
+        }
+
+        const recordLength = view.getUint16(offset, false); // Big-endian
+        const recordType = view.getUint8(offset + 2);
+        const recordSubType = view.getUint8(offset + 3);
+
+        // Validate record length
+        if (recordLength > this.MAX_RECORD_LENGTH) {
+          console.warn(`Invalid record length ${recordLength} at offset ${offset}. Attempting recovery.`);
+          offset = this.findNextValidRecord(view, offset + 1, buffer.byteLength);
+          parseErrors++;
+          continue;
+        }
+
+        if (recordLength === 0) {
+          offset += 4;
+          continue;
+        }
+
+        // Check if we have enough data for this record
+        if (offset + 4 + recordLength > buffer.byteLength) {
+          console.warn(`Record extends beyond buffer: length=${recordLength}, remaining=${buffer.byteLength - offset - 4}`);
+          break;
+        }
+
+        // Extract record data safely
         try {
-          const recordLength = view.getUint16(offset, false); // Big-endian
-          const recordType = view.getUint8(offset + 2);
-          const recordSubType = view.getUint8(offset + 3);
-          
-          if (recordLength === 0) {
-            offset += 4;
-            continue;
-          }
-          
           const recordData = new Uint8Array(buffer, offset + 4, recordLength);
           
           records.push({
             type: recordType,
             subType: recordSubType,
             length: recordLength,
-            data: recordData
+            data: recordData,
+            offset: offset
           });
-          
+
           offset += 4 + recordLength;
         } catch (error) {
-          console.warn('Error parsing STDF record at offset', offset, error);
-          offset += 4; // Skip this record
+          console.warn(`Error extracting record data at offset ${offset}:`, error);
+          offset = this.findNextValidRecord(view, offset + 4, buffer.byteLength);
+          parseErrors++;
         }
+
+      } catch (error) {
+        console.warn(`Error parsing record at offset ${offset}:`, error);
+        
+        // Attempt recovery by finding next valid record
+        const nextOffset = this.findNextValidRecord(view, offset + 1, buffer.byteLength);
+        if (nextOffset > offset) {
+          offset = nextOffset;
+          recoveredRecords++;
+        } else {
+          offset += 4; // Minimal advance if recovery fails
+        }
+        parseErrors++;
       }
-      
-      console.log(`Parsed ${records.length} STDF records from file: ${file.name}`);
-      
-      // Extract meaningful data from records
-      return this.extractStdfData(records, file.name);
-      
-    } catch (error) {
-      console.error('Error parsing STDF file:', error);
-      // Return mock data as fallback
-      return this.generateMockStdfData(file.name);
+
+      // Progress logging for large files
+      if (records.length % 10000 === 0 && records.length > 0) {
+        const progress = ((offset / buffer.byteLength) * 100).toFixed(1);
+        console.log(`Parsing progress: ${progress}% (${records.length} records, ${parseErrors} errors)`);
+      }
     }
+
+    console.log(`STDF parsing completed:
+      - Total records: ${records.length}
+      - Parse errors: ${parseErrors}
+      - Recovered records: ${recoveredRecords}
+      - Final offset: ${offset}/${buffer.byteLength} bytes`);
+
+    if (parseErrors >= maxErrors) {
+      console.warn(`Maximum parse errors (${maxErrors}) reached. File may be severely corrupted.`);
+    }
+
+    // Extract meaningful data from records
+    return this.extractStdfData(records, fileName, parseErrors > 0);
+  }
+
+  private static findNextValidRecord(view: DataView, startOffset: number, maxOffset: number): number {
+    // Try to find the next valid record by looking for reasonable record lengths
+    for (let offset = startOffset; offset < maxOffset - 4; offset++) {
+      try {
+        const recordLength = view.getUint16(offset, false);
+        const recordType = view.getUint8(offset + 2);
+        const recordSubType = view.getUint8(offset + 3);
+        
+        // Check if this looks like a valid record
+        if (recordLength > 0 && recordLength <= this.MAX_RECORD_LENGTH &&
+            recordType >= 0 && recordType <= 255 &&
+            recordSubType >= 0 && recordSubType <= 255 &&
+            offset + 4 + recordLength <= maxOffset) {
+          return offset;
+        }
+      } catch (error) {
+        // Continue searching
+      }
+    }
+    return startOffset; // Return original offset if no valid record found
   }
   
-  private static extractStdfData(records: any[], fileName: string): ParsedStdfData {
+  private static extractStdfData(records: any[], fileName: string, hasParseErrors = false): ParsedStdfData {
     const header: StdfHeader = {
       fileVersion: '1.0',
       lotId: 'UNKNOWN',

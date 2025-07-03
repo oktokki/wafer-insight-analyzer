@@ -37,11 +37,19 @@ export const StdfDataDisplay = ({ parsedStdfData }: StdfDataDisplayProps) => {
               <div><span className="font-medium">Part Type:</span> {parsedStdfData.header.partType}</div>
               <div><span className="font-medium">Test Program:</span> {parsedStdfData.header.testProgram}</div>
               <div><span className="font-medium">Test Time:</span> {new Date(parsedStdfData.header.testTime).toLocaleString()}</div>
+              <div><span className="font-medium">Operator:</span> {parsedStdfData.header.operatorId}</div>
+              <div><span className="font-medium">Temperature:</span> {parsedStdfData.header.testTemperature}°C</div>
             </div>
             
             {parsedStdfData.waferInfo && (
-              <div className="mt-2">
-                <span className="font-medium">Wafer ID:</span> {parsedStdfData.waferInfo.waferId}
+              <div className="mt-2 p-2 bg-blue-50 rounded">
+                <h5 className="font-medium text-blue-900 mb-1">Wafer Information:</h5>
+                <div className="grid grid-cols-2 gap-2 text-sm text-blue-800">
+                  <div><span className="font-medium">Wafer ID:</span> {parsedStdfData.waferInfo.waferId}</div>
+                  <div><span className="font-medium">Size:</span> {parsedStdfData.waferInfo.waferX} × {parsedStdfData.waferInfo.waferY} {parsedStdfData.waferInfo.waferUnits}</div>
+                  <div><span className="font-medium">Flat:</span> {parsedStdfData.waferInfo.flatDirection}</div>
+                  <div><span className="font-medium">Center:</span> ({parsedStdfData.waferInfo.centerX}, {parsedStdfData.waferInfo.centerY})</div>
+                </div>
               </div>
             )}
           </div>

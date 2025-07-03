@@ -24,11 +24,12 @@ export const WaferHeatmap = ({ data }: HeatmapProps) => {
 
   const hasEdsData = data?.edsData?.waferMaps?.length > 0;
   const hasSecondFoundryData = data?.secondFoundryData?.length > 0;
+  const hasStdfData = data?.stdfData?.parts?.length > 0;
   
   const waferMaps = hasEdsData ? data.edsData.waferMaps : 
                    hasSecondFoundryData ? data.secondFoundryData : [];
   const selectedWafer = waferMaps[selectedWaferIndex];
-  const dataType = hasEdsData ? 'eds' : hasSecondFoundryData ? 'second-foundry' : null;
+  const dataType = hasEdsData ? 'eds' : hasSecondFoundryData ? 'second-foundry' : hasStdfData ? 'stdf' : null;
 
   // Generate heatmap data based on selected type
   const generateHeatmapData = (): HeatmapCell[] => {
@@ -179,7 +180,7 @@ export const WaferHeatmap = ({ data }: HeatmapProps) => {
     return heatmapData.filter(cell => cell.value >= threshold).length;
   };
 
-  if (!hasEdsData && !hasSecondFoundryData) {
+  if (!hasEdsData && !hasSecondFoundryData && !hasStdfData) {
     return (
       <Card>
         <CardHeader>
@@ -189,6 +190,35 @@ export const WaferHeatmap = ({ data }: HeatmapProps) => {
         <CardContent>
           <div className="text-center py-8">
             <p className="text-gray-500">Upload wafer map data to view heatmap analysis</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Handle STDF data visualization
+  if (hasStdfData && !hasEdsData && !hasSecondFoundryData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>STDF Heatmap Analysis</CardTitle>
+          <CardDescription>Spatial analysis for STDF test data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="space-y-4">
+              <p className="text-gray-600">STDF heatmap visualization available</p>
+              <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+                <div className="p-3 bg-blue-50 rounded">
+                  <p className="font-medium text-blue-900">Total Parts</p>
+                  <p className="text-xl font-bold text-blue-700">{data.stdfData.summary.totalParts.toLocaleString()}</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded">
+                  <p className="font-medium text-green-900">Yield</p>
+                  <p className="text-xl font-bold text-green-700">{data.stdfData.summary.yieldPercentage.toFixed(1)}%</p>
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
